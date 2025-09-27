@@ -41,7 +41,12 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import megamek.client.bot.princess.geometry.CoordFacingCombo;
-import megamek.common.*;
+import megamek.common.ECMInfo;
+import megamek.common.Hex;
+import megamek.common.Player;
+import megamek.common.Report;
+import megamek.common.SpecialHexDisplay;
+import megamek.common.TagInfo;
 import megamek.common.actions.ArtilleryAttackAction;
 import megamek.common.actions.AttackAction;
 import megamek.common.actions.ClubAttackAction;
@@ -51,12 +56,35 @@ import megamek.common.actions.FlipArmsAction;
 import megamek.common.actions.TorsoTwistAction;
 import megamek.common.actions.WeaponAttackAction;
 import megamek.common.annotations.Nullable;
+import megamek.common.board.Board;
+import megamek.common.board.BoardLocation;
+import megamek.common.board.Coords;
+import megamek.common.compute.ComputeECM;
 import megamek.common.enums.GamePhase;
-import megamek.common.event.*;
+import megamek.common.equipment.Flare;
+import megamek.common.equipment.ICarryable;
+import megamek.common.equipment.Minefield;
+import megamek.common.equipment.Mounted;
+import megamek.common.event.GameCFREvent;
+import megamek.common.event.GameEvent;
+import megamek.common.event.GameListenerAdapter;
+import megamek.common.event.GamePhaseChangeEvent;
+import megamek.common.event.GameSettingsChangeEvent;
+import megamek.common.event.GameVictoryEvent;
+import megamek.common.event.board.GameBoardChangeEvent;
+import megamek.common.event.entity.GameEntityChangeEvent;
+import megamek.common.event.player.GamePlayerChangeEvent;
+import megamek.common.event.player.GamePlayerChatEvent;
+import megamek.common.game.Game;
+import megamek.common.game.GameTurn;
 import megamek.common.net.enums.PacketCommand;
+import megamek.common.net.packets.InvalidPacketDataException;
 import megamek.common.net.packets.Packet;
 import megamek.common.options.GameOptions;
-import megamek.common.planetaryconditions.PlanetaryConditions;
+import megamek.common.planetaryConditions.PlanetaryConditions;
+import megamek.common.units.Building;
+import megamek.common.units.Entity;
+import megamek.common.units.UnitLocation;
 import megamek.logging.MMLogger;
 import megamek.server.SmokeCloud;
 
@@ -166,10 +194,10 @@ public class Precognition implements Runnable {
                 case SENDING_MINEFIELDS:
                     receiveSendingMinefields(c);
                     break;
-                case SENDING_ILLUM_HEXES:
+                case SENDING_ILLUMINATED_HEXES:
                     receiveIlluminatedHexes(c);
                     break;
-                case CLEAR_ILLUM_HEXES:
+                case CLEAR_ILLUMINATED_HEXES:
                     getGame().clearIlluminatedPositions();
                     break;
                 case UPDATE_MINEFIELDS:
@@ -278,7 +306,7 @@ public class Precognition implements Runnable {
                             break;
                         case CFR_APDS_ASSIGN:
                             cfrEvt.setEntityId((int) c.data()[1]);
-                            cfrEvt.setApdsDists((List<Integer>) c.data()[2]);
+                            cfrEvt.setApdsDistances((List<Integer>) c.data()[2]);
                             cfrEvt.setWAAs((List<WeaponAttackAction>) c.data()[3]);
                             break;
                         default:
@@ -290,7 +318,7 @@ public class Precognition implements Runnable {
                     GameVictoryEvent gve = new GameVictoryEvent(this, getGame());
                     getGame().processGameEvent(gve);
                     break;
-                case ENTITY_MULTIUPDATE:
+                case ENTITY_MULTI_UPDATE:
                     receiveEntitiesUpdate(c);
                     break;
                 case UPDATE_GROUND_OBJECTS:
@@ -318,6 +346,8 @@ public class Precognition implements Runnable {
                     LOGGER.error("Attempted to parse unknown PacketCommand: {}", c.command().name());
                     break;
             }
+        } catch (InvalidPacketDataException e) {
+            LOGGER.error("Invalid packet data:", e);
         } catch (Exception ex) {
             LOGGER.error(ex, "handlePacket");
         } finally {
@@ -329,7 +359,7 @@ public class Precognition implements Runnable {
      * Update multiple entities from the server. Used only in the lobby phase.
      */
     @SuppressWarnings("unchecked")
-    protected void receiveEntitiesUpdate(Packet c) {
+    protected void receiveEntitiesUpdate(Packet c) throws InvalidPacketDataException {
         Collection<Entity> entities = (Collection<Entity>) c.getObject(0);
         for (Entity entity : entities) {
             getGame().setEntity(entity.getId(), entity);
@@ -699,7 +729,7 @@ public class Precognition implements Runnable {
     /**
      * Receives player information from the message packet.
      */
-    private void receivePlayerInfo(Packet packet) {
+    private void receivePlayerInfo(Packet packet) throws InvalidPacketDataException {
         int playerIndex = packet.getIntValue(0);
         Player newPlayer = (Player) packet.getObject(1);
         if (getPlayer(newPlayer.getId()) == null) {
@@ -713,7 +743,7 @@ public class Precognition implements Runnable {
      * Loads the turn list from the data in the packet
      */
     @SuppressWarnings("unchecked")
-    private void receiveTurns(Packet packet) {
+    private void receiveTurns(Packet packet) throws InvalidPacketDataException {
         getGame().setTurnVector((List<GameTurn>) packet.getObject(0));
     }
 
@@ -721,7 +751,7 @@ public class Precognition implements Runnable {
      * Loads the entities from the data in the net command.
      */
     @SuppressWarnings("unchecked")
-    private void receiveEntities(Packet packet) {
+    private void receiveEntities(Packet packet) throws InvalidPacketDataException {
         List<Entity> newEntities = (List<Entity>) packet.getObject(0);
         List<Entity> newOutOfGame = (List<Entity>) packet.getObject(1);
 
@@ -736,7 +766,7 @@ public class Precognition implements Runnable {
      * Loads entity update data from the data in the net command.
      */
     @SuppressWarnings("unchecked")
-    private void receiveEntityUpdate(Packet packet) {
+    private void receiveEntityUpdate(Packet packet) throws InvalidPacketDataException {
         int entityIndex = packet.getIntValue(0);
         Entity entity = (Entity) packet.getObject(1);
         Vector<UnitLocation> movePath = (Vector<UnitLocation>) packet.getObject(2);
@@ -744,13 +774,13 @@ public class Precognition implements Runnable {
         getGame().setEntity(entityIndex, entity, movePath);
     }
 
-    private void receiveEntityAdd(Packet packet) {
+    private void receiveEntityAdd(Packet packet) throws InvalidPacketDataException {
         @SuppressWarnings(value = "unchecked")
         List<Entity> entities = (List<Entity>) packet.getObject(0);
         getGame().addEntities(entities);
     }
 
-    private void receiveEntityRemove(Packet packet) {
+    private void receiveEntityRemove(Packet packet) throws InvalidPacketDataException {
         @SuppressWarnings("unchecked")
         List<Integer> entityIds = (List<Integer>) packet.getObject(0);
         int condition = packet.getIntValue(1);
@@ -759,7 +789,7 @@ public class Precognition implements Runnable {
     }
 
     @SuppressWarnings("unchecked")
-    private void receiveEntityVisibilityIndicator(Packet packet) {
+    private void receiveEntityVisibilityIndicator(Packet packet) throws InvalidPacketDataException {
         Entity entity = getGame().getEntity(packet.getIntValue(0));
         if (entity != null) { // we may not have this entity due to double blind
             entity.setEverSeenByEnemy(packet.getBooleanValue(1));
@@ -774,30 +804,30 @@ public class Precognition implements Runnable {
     }
 
     @SuppressWarnings("unchecked")
-    private void receiveDeployMinefields(Packet packet) {
+    private void receiveDeployMinefields(Packet packet) throws InvalidPacketDataException {
         getGame().addMinefields((Vector<Minefield>) packet.getObject(0));
     }
 
     @SuppressWarnings("unchecked")
-    private void receiveSendingMinefields(Packet packet) {
+    private void receiveSendingMinefields(Packet packet) throws InvalidPacketDataException {
         getGame().setMinefields((Vector<Minefield>) packet.getObject(0));
     }
 
     @SuppressWarnings("unchecked")
-    private void receiveIlluminatedHexes(Packet p) {
+    private void receiveIlluminatedHexes(Packet p) throws InvalidPacketDataException {
         getGame().setIlluminatedPositions((HashSet<Coords>) p.getObject(0));
     }
 
-    private void receiveRevealMinefield(Packet packet) {
+    private void receiveRevealMinefield(Packet packet) throws InvalidPacketDataException {
         getGame().addMinefield((Minefield) packet.getObject(0));
     }
 
-    private void receiveRemoveMinefield(Packet packet) {
+    private void receiveRemoveMinefield(Packet packet) throws InvalidPacketDataException {
         getGame().removeMinefield((Minefield) packet.getObject(0));
     }
 
     @SuppressWarnings("unchecked")
-    private void receiveUpdateMinefields(Packet packet) {
+    private void receiveUpdateMinefields(Packet packet) throws InvalidPacketDataException {
         // only update information if you know about the minefield
         Vector<Minefield> newMines = new Vector<>();
         for (Minefield mf : (Vector<Minefield>) packet.getObject(0)) {
@@ -812,14 +842,14 @@ public class Precognition implements Runnable {
     }
 
     @SuppressWarnings("unchecked")
-    private void receiveBuildingUpdate(Packet packet) {
+    private void receiveBuildingUpdate(Packet packet) throws InvalidPacketDataException {
         for (Building building : (List<Building>) packet.getObject(0)) {
             game.getBoard(building.getBoardId()).updateBuilding(building);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private void receiveBuildingCollapse(Packet packet) {
+    private void receiveBuildingCollapse(Packet packet) throws InvalidPacketDataException {
         int boardId = packet.getIntValue(1);
         game.getBoard(boardId).collapseBuilding((Vector<Coords>) packet.getObject(0));
     }
@@ -828,7 +858,7 @@ public class Precognition implements Runnable {
      * Loads entity firing data from the data in the net command
      */
     @SuppressWarnings("unchecked")
-    private void receiveAttack(Packet c) {
+    private void receiveAttack(Packet c) throws InvalidPacketDataException {
         List<EntityAction> vector = (List<EntityAction>) c.getObject(0);
         boolean isCharge = c.getBooleanValue(1);
         boolean addAction = true;
@@ -890,7 +920,7 @@ public class Precognition implements Runnable {
     }
 
     @SuppressWarnings("unchecked")
-    private void receiveUpdateGroundObjects(Packet packet) {
+    private void receiveUpdateGroundObjects(Packet packet) throws InvalidPacketDataException {
         game.setGroundObjects((Map<Coords, List<ICarryable>>) packet.getObject(0));
     }
 }

@@ -46,8 +46,21 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Stream;
 
-import megamek.common.*;
+import megamek.common.battleArmor.BattleArmor;
+import megamek.common.equipment.AmmoType;
 import megamek.common.equipment.ArmorType;
+import megamek.common.equipment.EquipmentType;
+import megamek.common.equipment.MiscType;
+import megamek.common.equipment.WeaponType;
+import megamek.common.equipment.enums.BombType;
+import megamek.common.units.Aero;
+import megamek.common.units.Entity;
+import megamek.common.units.Infantry;
+import megamek.common.units.Jumpship;
+import megamek.common.units.Mek;
+import megamek.common.units.ProtoMek;
+import megamek.common.units.SmallCraft;
+import megamek.common.units.Tank;
 import megamek.common.verifier.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
@@ -55,7 +68,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-@Disabled
 public class BulkUnitFileTest {
 
     @BeforeAll
@@ -69,15 +81,16 @@ public class BulkUnitFileTest {
         BombType.initializeTypes();
     }
 
+    @Disabled("This was broken before this test was added. We hope to fix save/load eventually, but we're not there yet.")
     @ParameterizedTest(name = "{0}")
     @MethodSource("allBlkFiles")
-    void loadVerifySaveVerifyBlks(File file) throws EntitySavingException, IOException {
+    void loadVerifySaveVerifyBLKFiles(File file) throws EntitySavingException, IOException {
         checkEntityFile(file);
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("allMtfFiles")
-    void loadVerifySaveVerifyMtfs(File file) throws EntitySavingException, IOException {
+    void loadVerifySaveVerifyMTFFiles(File file) throws EntitySavingException, IOException {
         checkEntityFile(file);
     }
 
@@ -97,7 +110,7 @@ public class BulkUnitFileTest {
             Entity repersistedEntity = loadUnit(tmpFile);
             var reValidation = verify(repersistedEntity);
             assertEquals(UnitValidation.VALID, reValidation.state(),
-                  "The unit is invalid after repersisting:\n\t"
+                  "The unit is invalid after re-persisting:\n\t"
                         + tmpFile
                         + "\n\t"
                         + entity.getDisplayName()
@@ -109,12 +122,12 @@ public class BulkUnitFileTest {
 
     @Test
     void loadVerifySaveVerifySpecificFile() throws EntitySavingException, IOException {
-        var file = new File("data/mekfiles/vehicles/3085u/Cutting Edge/Zugvogel Omni Support Aircraft D.blk");
+        var file = new File("testresources/data/mekfiles/Aegis Heavy Cruiser (2372).blk");
         checkEntityFile(file);
     }
 
     public static List<File> allMtfFiles() {
-        try (Stream<Path> paths = Files.walk(Paths.get("data/mekfiles"))) {
+        try (Stream<Path> paths = Files.walk(Paths.get("testresources/data/mekfiles"))) {
             return paths
                   .filter(Files::isRegularFile)
                   .filter(path -> path.toString().endsWith(".mtf"))
@@ -127,7 +140,7 @@ public class BulkUnitFileTest {
     }
 
     public static List<File> allBlkFiles() {
-        try (Stream<Path> paths = Files.walk(Paths.get("data/mekfiles"))) {
+        try (Stream<Path> paths = Files.walk(Paths.get("testresources/data/mekfiles"))) {
             return paths
                   .filter(Files::isRegularFile)
                   .filter(path -> path.toString().endsWith(".blk"))
@@ -151,7 +164,7 @@ public class BulkUnitFileTest {
 
     public static TestEntity getEntityVerifier(Entity unit) {
         EntityVerifier entityVerifier = EntityVerifier.getInstance(new File(
-              "data/mekfiles/UnitVerifierOptions.xml"));
+              "testresources/data/mekfiles/UnitVerifierOptions.xml"));
         TestEntity testEntity = null;
 
         if (unit.hasETypeFlag(Entity.ETYPE_MEK)) {
@@ -193,9 +206,7 @@ public class BulkUnitFileTest {
 
         var succeeded = testEntity.correctEntity(sb, unit.getTechLevel());
 
-        var validation = new Validation(UnitValidation.of(succeeded), sb.toString());
-
-        return validation;
+        return new Validation(UnitValidation.of(succeeded), sb.toString());
     }
 
     public static boolean persistUnit(File outFile, Entity entity) throws EntitySavingException {

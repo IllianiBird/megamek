@@ -35,7 +35,7 @@ package megamek.client.ratgenerator;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-import megamek.common.EntityMovementMode;
+import megamek.common.units.EntityMovementMode;
 import megamek.logging.MMLogger;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -408,7 +408,7 @@ public class ForceNode extends RulesetNode {
                         }
                     }
                     break;
-                case "subForces":
+                case "subforces":
                     subForces.add(SubForcesNode.createFromXml(wn));
                     break;
                 case "attachedForces":

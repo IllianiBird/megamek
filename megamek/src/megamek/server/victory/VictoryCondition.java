@@ -36,14 +36,14 @@ package megamek.server.victory;
 
 import java.util.Map;
 
-import megamek.common.Game;
+import megamek.common.game.Game;
 
 /**
  * Interface for classes judging whether a victory occurred or not. These classes must not modify the game state.
  * Reporting must be done via the given interface.
  * <BR>
  * Note: VictoryConditions may be checked any number of times at various points in the game and implementing classes
- * must be able to deal with this. For example, a VictoryCondition that counts rounds must not assume that is is called
+ * must be able to deal with this. For example, a VictoryCondition that counts rounds must not assume that is called
  * only once per round.
  * <BR>
  * Note: VictoryConditions should add proper reports to their resulting VictoryResult. When doing so, note that their

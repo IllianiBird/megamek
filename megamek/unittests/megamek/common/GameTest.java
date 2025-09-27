@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2021-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import megamek.common.game.Game;
 import megamek.server.victory.VictoryResult;
 import org.junit.jupiter.api.Test;
 
@@ -69,7 +70,7 @@ class GameTest {
         VictoryResult victoryResult = game.getVictoryResult();
         assertNotNull(victoryResult);
 
-        // Note: this accessors are tested in VictoryResultTest
+        // Note: these accessors are tested in VictoryResultTest
         assertSame(Player.PLAYER_NONE, victoryResult.getWinningPlayer());
         assertSame(Player.TEAM_NONE, victoryResult.getWinningTeam());
 

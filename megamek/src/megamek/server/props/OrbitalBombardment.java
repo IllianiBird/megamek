@@ -35,7 +35,7 @@ package megamek.server.props;
 
 import java.util.List;
 
-import megamek.common.Coords;
+import megamek.common.board.Coords;
 
 /**
  * Represents an orbital bombardment event. x and y are board positions, damageFactor is the damage at impact point
@@ -95,8 +95,7 @@ public class OrbitalBombardment {
         var offsetX = boardPosition.getX() - getXOffset();
         var offsetY = boardPosition.getY() - getYOffset();
         var modifier = offsetX % 2 == 0 ? "" : "_odd";
-        var imageSig = String.format("col_%d_row_%d%s.png", offsetX, offsetY, modifier);
-        return imageSig;
+        return String.format("col_%d_row_%d%s.png", offsetX, offsetY, modifier);
     }
 
     public List<Coords> getAllAffectedCoords() {

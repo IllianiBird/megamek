@@ -45,10 +45,17 @@ import java.util.List;
 import jakarta.xml.bind.ValidationException;
 import megamek.client.Client;
 import megamek.client.ui.clientGUI.ClientGUI;
+import megamek.common.board.Coords;
+import megamek.common.compute.Compute;
+import megamek.common.equipment.EquipmentType;
+import megamek.common.game.Game;
 import megamek.common.options.GameOptions;
 import megamek.common.options.Option;
 import megamek.common.options.OptionsConstants;
 import megamek.common.options.PilotOptions;
+import megamek.common.units.BipedMek;
+import megamek.common.units.Crew;
+import megamek.common.units.Mek;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,9 +71,6 @@ class ToHitDataTest {
     static Team team2 = new Team(1);
     static Player player1 = new Player(0, "Test1");
     static Player player2 = new Player(1, "Test2");
-    static WeaponType mockLRM20 = (WeaponType) EquipmentType.get("ISLRM20");
-    static AmmoType mockLRM20mmoType = (AmmoType) EquipmentType.get("ISLRM20 Ammo");
-    static AmmoType mockLRM20SwarmType = (AmmoType) EquipmentType.get("ISLRM20 Swarm Ammo");
 
 
     @BeforeAll
@@ -83,7 +87,7 @@ class ToHitDataTest {
         game.setOptions(mockGameOptions);
 
         when(mockGameOptions.booleanOption(eq(OptionsConstants.ALLOWED_NO_CLAN_PHYSICAL))).thenReturn(false);
-        when(mockGameOptions.stringOption(OptionsConstants.ALLOWED_TECHLEVEL)).thenReturn("Experimental");
+        when(mockGameOptions.stringOption(OptionsConstants.ALLOWED_TECH_LEVEL)).thenReturn("Experimental");
         when(mockGameOptions.booleanOption(OptionsConstants.ALLOWED_ERA_BASED)).thenReturn(true);
         when(mockGameOptions.booleanOption(OptionsConstants.ALLOWED_SHOW_EXTINCT)).thenReturn(false);
         Option mockTrueBoolOpt = mock(Option.class);
@@ -124,7 +128,7 @@ class ToHitDataTest {
         if (coords.size() != 3) {
             throw new ValidationException("Invalid number of coordinates");
         }
-        ;
+
         Mek attacker = createMek("Attacker", "ATK-1", "Alice");
         Mek target1 = createMek("Target", "TGT-2", "Bob");
         Mek target2 = createMek("Target", "TGT-2", "Charlie");
@@ -161,8 +165,7 @@ class ToHitDataTest {
         int gunnery = 4;
         int amm = 2;
         int rangeMod = 2;
-        int targetMove = 3;
-        target1.delta_distance = targetMove;
+        target1.delta_distance = 3;
 
         toHitData.addModifier(gunnery, "Gunnery Skill");
         toHitData.addModifier(amm, "Attacker ran");

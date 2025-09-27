@@ -34,11 +34,11 @@
 package megamek.common.cost;
 
 import megamek.client.ui.clientGUI.calculationReport.CalculationReport;
-import megamek.common.BattleArmorBay;
-import megamek.common.Bay;
-import megamek.common.InfantryBay;
-import megamek.common.Warship;
+import megamek.common.bays.BattleArmorBay;
+import megamek.common.bays.Bay;
+import megamek.common.bays.InfantryBay;
 import megamek.common.equipment.ArmorType;
+import megamek.common.units.Warship;
 
 public class WarShipCostCalculator {
 
@@ -59,7 +59,7 @@ public class WarShipCostCalculator {
         // Fire Control Computer
         costs[costIdx++] += 100000;
         // Gunnery Control Systems
-        costs[costIdx++] += 10000 * warShip.getArcswGuns();
+        costs[costIdx++] += 10000 * warShip.getArcsWithGuns();
         // Structural Integrity
         costs[costIdx++] += 100000 * warShip.getSI();
 
@@ -128,19 +128,19 @@ public class WarShipCostCalculator {
         costs[costIdx++] += deckCost;
 
         // Transport Bays
-        int baydoors = 0;
+        int bayDoors = 0;
         long bayCost = 0;
         long quartersCost = 0;
         // Passenger and crew quarters and infantry bays are considered part of the structure
         // and don't add to the cost
         for (Bay next : warShip.getTransportBays()) {
-            baydoors += next.getDoors();
+            bayDoors += next.getDoors();
             if (!next.isQuarters() && !(next instanceof InfantryBay) && !(next instanceof BattleArmorBay)) {
                 bayCost += next.getCost();
             }
         }
 
-        costs[costIdx++] += bayCost + (baydoors * 1000L);
+        costs[costIdx++] += bayCost + (bayDoors * 1000L);
         costs[costIdx++] = quartersCost;
 
         // Weapons and Equipment

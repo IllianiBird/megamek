@@ -54,12 +54,12 @@ import javax.xml.parsers.DocumentBuilder;
 import megamek.client.ratgenerator.FactionRecord.TechCategory;
 import megamek.client.ratgenerator.UnitTable.TableEntry;
 import megamek.common.Configuration;
-import megamek.common.EntityMovementMode;
-import megamek.common.ITechnology.Faction;
-import megamek.common.MekSummary;
-import megamek.common.MekSummaryCache;
-import megamek.common.UnitType;
 import megamek.common.annotations.Nullable;
+import megamek.common.enums.Faction;
+import megamek.common.loaders.MekSummary;
+import megamek.common.loaders.MekSummaryCache;
+import megamek.common.units.EntityMovementMode;
+import megamek.common.units.UnitType;
 import megamek.common.universe.Factions2;
 import megamek.common.util.fileUtils.MegaMekFile;
 import megamek.logging.MMLogger;
@@ -589,8 +589,8 @@ public class RATGenerator {
             }
 
             // Handle ChassisRecords saved as "AERO" units as ASFs for now
-            if (Arrays.asList(UnitType.AERO, UnitType.AEROSPACEFIGHTER).contains(curChassis.getUnitType())) {
-                curChassis.setUnitType(UnitType.AEROSPACEFIGHTER);
+            if (Arrays.asList(UnitType.AERO, UnitType.AEROSPACE_FIGHTER).contains(curChassis.getUnitType())) {
+                curChassis.setUnitType(UnitType.AEROSPACE_FIGHTER);
             }
 
             // Only return VTOLs when specifically requesting the unit type
@@ -727,7 +727,7 @@ public class RATGenerator {
               weightClasses.size() > 1) &&
               (unitType == UnitType.MEK ||
                     unitType == UnitType.TANK ||
-                    unitType == UnitType.AEROSPACEFIGHTER) &&
+                    unitType == UnitType.AEROSPACE_FIGHTER) &&
               (roles == null || roles.isEmpty())) {
 
             // Get standard weight class distribution for faction
@@ -845,7 +845,7 @@ public class RATGenerator {
         // unit types. Also skip when generating tables for specific roles.
         if (ratingLevel >= 0 &&
               (unitType == UnitType.MEK ||
-                    unitType == UnitType.AEROSPACEFIGHTER ||
+                    unitType == UnitType.AEROSPACE_FIGHTER ||
                     unitType == UnitType.TANK ||
                     unitType == UnitType.VTOL) &&
               ((roles == null) || roles.isEmpty())) {
@@ -944,7 +944,7 @@ public class RATGenerator {
             pctSL = interpolate(fRec.findPctTech(TechCategory.IS_ADVANCED, currentEra, rating),
                   fRec.findPctTech(TechCategory.IS_ADVANCED, nextEra, rating), currentEra, nextEra, year);
         }
-        if (unitType == UnitType.AEROSPACEFIGHTER) {
+        if (unitType == UnitType.AEROSPACE_FIGHTER) {
             pctOmni = interpolate(fRec.findPctTech(TechCategory.OMNI_AERO, currentEra, rating),
                   fRec.findPctTech(TechCategory.OMNI_AERO, nextEra, rating), currentEra, nextEra, year);
             pctClan = interpolate(fRec.findPctTech(TechCategory.CLAN_AERO, currentEra, rating),
@@ -994,7 +994,7 @@ public class RATGenerator {
 
         double totalWeightPostMod = 0.0;
         // Only balance Meks and aerospace for Omni/non-Omni ratios
-        if ((unitType == UnitType.MEK || unitType == UnitType.AEROSPACEFIGHTER) && pctOmni != null) {
+        if ((unitType == UnitType.MEK || unitType == UnitType.AEROSPACE_FIGHTER) && pctOmni != null) {
 
             // Get the difference between the ideal Omni level and the current one
             double omniPctDifference = pctOmni - (100.0 * totalOmniWeight / totalWeight);
@@ -1365,8 +1365,8 @@ public class RATGenerator {
     private synchronized void initialize(File dir) {
         // Give the MSC some time to initialize
         MekSummaryCache msc = MekSummaryCache.getInstance();
-        long waitLimit = System.currentTimeMillis() + 3000; /* 3 seconds */
-        while (!interrupted && !msc.isInitialized() && waitLimit > System.currentTimeMillis()) {
+        long waitLimit = java.lang.System.currentTimeMillis() + 3000; /* 3 seconds */
+        while (!interrupted && !msc.isInitialized() && waitLimit > java.lang.System.currentTimeMillis()) {
             try {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
@@ -1591,52 +1591,56 @@ public class RATGenerator {
         }
     }
 
-    private void parseModelNode(int era, ChassisRecord cr, Node wn) {
-        String modelKey = (cr.getChassis() + ' ' + wn.getAttributes().getNamedItem("name").getTextContent()).trim();
+    private void parseModelNode(int era, ChassisRecord chassisRecord, Node node) {
+        String modelKey = (chassisRecord.getChassis() + ' ' + node.getAttributes()
+              .getNamedItem("name")
+              .getTextContent()).trim();
         boolean newEntry = false;
-        ModelRecord mr = models.get(modelKey);
-        if (mr == null) {
+        ModelRecord modelRecord = models.get(modelKey);
+        if (modelRecord == null) {
             newEntry = true;
-            MekSummary ms = MekSummaryCache.getInstance().getMek(modelKey);
-            if (ms != null) {
-                mr = new ModelRecord(ms);
-                mr.setOmni(cr.isOmni());
-                models.put(modelKey, mr);
+            MekSummary mekSummary = MekSummaryCache.getInstance().getMek(modelKey);
+            if (mekSummary != null) {
+                modelRecord = new ModelRecord(mekSummary);
+                modelRecord.setOmni(chassisRecord.isOmni());
+                models.put(modelKey, modelRecord);
             }
 
-            if (mr == null) {
+            if (modelRecord == null) {
                 LOGGER.error("{} {} not found.",
-                      cr.getChassis(),
-                      wn.getAttributes().getNamedItem("name").getTextContent());
+                      chassisRecord.getChassis(),
+                      node.getAttributes().getNamedItem("name").getTextContent());
                 return;
             }
         }
-        cr.addModel(mr);
-        if (wn.getAttributes().getNamedItem("mechanized") != null) {
-            mr.setMechanizedBA(Boolean.parseBoolean(wn.getAttributes().getNamedItem("mechanized").getTextContent()));
+        chassisRecord.addModel(modelRecord);
+        if (node.getAttributes().getNamedItem("mechanized") != null) {
+            modelRecord.setMechanizedBA(Boolean.parseBoolean(node.getAttributes()
+                  .getNamedItem("mechanized")
+                  .getTextContent()));
         }
 
-        for (int k = 0; k < wn.getChildNodes().getLength(); k++) {
-            Node wn2 = wn.getChildNodes().item(k);
+        for (int k = 0; k < node.getChildNodes().getLength(); k++) {
+            Node wn2 = node.getChildNodes().item(k);
             if (wn2.getNodeName().equalsIgnoreCase("roles") && newEntry) {
-                mr.addRoles(wn2.getTextContent().trim());
+                modelRecord.addRoles(wn2.getTextContent().trim());
             } else if (wn2.getNodeName().equalsIgnoreCase("deployedWith") && newEntry) {
-                mr.setRequiredUnits(wn2.getTextContent().trim());
+                modelRecord.setRequiredUnits(wn2.getTextContent().trim());
             } else if (wn2.getNodeName().equalsIgnoreCase("availability")) {
-                modelIndex.get(era).put(mr.getKey(), new HashMap<>());
+                modelIndex.get(era).put(modelRecord.getKey(), new HashMap<>());
                 String[] codes = wn2.getTextContent().trim().split(",");
                 // Create a separate availability rating for each provided faction
                 for (String code : codes) {
 
-                    AvailabilityRating ar = new AvailabilityRating(mr.getKey(), era, code);
+                    AvailabilityRating ar = new AvailabilityRating(modelRecord.getKey(), era, code);
                     // If it provides availability values based on equipment ratings,
                     // generate index values in addition to letter values
                     if (ar.hasMultipleRatings()) {
                         ar.setRatingByNumericLevel(factions.get(ar.getFaction()));
                     }
 
-                    mr.getIncludedFactions().add(ar.getFaction());
-                    modelIndex.get(era).get(mr.getKey()).put(ar.getFactionCode(), ar);
+                    modelRecord.getIncludedFactions().add(ar.getFaction());
+                    modelIndex.get(era).get(modelRecord.getKey()).put(ar.getFactionCode(), ar);
 
                 }
             }

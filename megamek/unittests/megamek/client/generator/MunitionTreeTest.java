@@ -115,7 +115,7 @@ class MunitionTreeTest {
     }
 
     @Test
-    void testGetCountsOfAmmosForKey() {
+    void testGetCountsOfAmmunitionForKey() {
         MunitionTree mt = new MunitionTree();
         lrmHash.put("LRM", "Standard:Smoke:Thunder:");
         acHash.put("AC", "Standard:Precision:Caseless");
@@ -130,15 +130,15 @@ class MunitionTreeTest {
         assertEquals(1, mt.getCountOfAmmoForKey("Mauler", "any", "any", "LRM", "Standard"));
 
         // Should be three AC ammo types defined, each with a count of 1.
-        HashMap<String, Integer> binCounts = mt.getCountsOfAmmosForKey("Mauler", "any", "any", "AC20");
-        assertEquals(3, binCounts.values().size());
+        HashMap<String, Integer> binCounts = mt.getCountsOfAmmunitionForKey("Mauler", "any", "any", "AC20");
+        assertEquals(3, binCounts.size());
         assertEquals(1, binCounts.get("Precision"));
         assertEquals(1, binCounts.get("Caseless"));
         assertEquals(1, binCounts.get("Standard"));
 
         // Should be zero ATM
-        binCounts = mt.getCountsOfAmmosForKey("Mauler", "any", "any", "ATM");
-        assertEquals(0, binCounts.values().size());
+        binCounts = mt.getCountsOfAmmunitionForKey("Mauler", "any", "any", "ATM");
+        assertEquals(0, binCounts.size());
         assertEquals(0, binCounts.getOrDefault("Precision", 0));
     }
 
@@ -168,29 +168,17 @@ class MunitionTreeTest {
         MunitionTree mt = new MunitionTree();
         mt.readFromADF(br);
         // 3 ammo types set for Catapult C1
-        assertEquals(3, mt.getCountsOfAmmosForKey("Catapult", "CPLT-C1", "any", "LRM-15").size());
+        assertEquals(3, mt.getCountsOfAmmunitionForKey("Catapult", "CPLT-C1", "any", "LRM-15").size());
 
         // 1 ammo type each for each of three Shadow Hawk weapons
-        assertEquals(1, mt.getCountsOfAmmosForKey("Shadow Hawk", "SHD-2D", "any", "LRM-5").size());
-        assertEquals(1, mt.getCountsOfAmmosForKey("Shadow Hawk", "SHD-2D", "any", "SRM-2").size());
-        assertEquals(1, mt.getCountsOfAmmosForKey("Shadow Hawk", "SHD-2D", "any", "AC-5").size());
+        assertEquals(1, mt.getCountsOfAmmunitionForKey("Shadow Hawk", "SHD-2D", "any", "LRM-5").size());
+        assertEquals(1, mt.getCountsOfAmmunitionForKey("Shadow Hawk", "SHD-2D", "any", "SRM-2").size());
+        assertEquals(1, mt.getCountsOfAmmunitionForKey("Shadow Hawk", "SHD-2D", "any", "AC-5").size());
     }
 
     @Test
     void testADFFormatTextOutput() throws IOException {
-        StringWriter sw = new StringWriter();
-        BufferedWriter bw = new BufferedWriter(sw);
-        MunitionTree mt = new MunitionTree();
-
-        mt.insertImperative("any", "any", "any", "AC", "Standard:Precision");
-        mt.insertImperative("any", "any", "any", "LRM", "Standard:Heat-Seeking:Semi-Guided");
-        mt.insertImperative("Mauler", "MAL-5X", "Tsubaki Yonjuro", "AC/5", "Precision:Tracer:Armor-Piercing");
-        mt.insertImperative("Shadow Hawk", "SHD-2D", "any", "LRM-5", "Dead-Fire");
-        mt.insertImperative("Shadow Hawk", "SHD-2D", "any", "SRM", "Inferno");
-        mt.insertImperative("Shadow Hawk", "SHD-2D", "any", "AC", "Precision");
-
-        mt.writeToADFFormat(bw);
-        String[] lines = sw.toString().split("\\n");
+        String[] lines = getStrings();
         // Lines are generated in map key order, so basically random.
         for (String line : lines) {
             if (line.startsWith("any:any:any::")) {
@@ -205,18 +193,34 @@ class MunitionTreeTest {
         }
     }
 
+    private static String[] getStrings() throws IOException {
+        StringWriter stringWriter = new StringWriter();
+        BufferedWriter bufferedWriter = new BufferedWriter(stringWriter);
+        MunitionTree munitionTree = new MunitionTree();
+
+        munitionTree.insertImperative("any", "any", "any", "AC", "Standard:Precision");
+        munitionTree.insertImperative("any", "any", "any", "LRM", "Standard:Heat-Seeking:Semi-Guided");
+        munitionTree.insertImperative("Mauler", "MAL-5X", "Tsubaki Yonjuro", "AC/5", "Precision:Tracer:Armor-Piercing");
+        munitionTree.insertImperative("Shadow Hawk", "SHD-2D", "any", "LRM-5", "Dead-Fire");
+        munitionTree.insertImperative("Shadow Hawk", "SHD-2D", "any", "SRM", "Inferno");
+        munitionTree.insertImperative("Shadow Hawk", "SHD-2D", "any", "AC", "Precision");
+
+        munitionTree.writeToADFFormat(bufferedWriter);
+        return stringWriter.toString().split("\\n");
+    }
+
     @Test
     void testLoadNodeCopyConstructor() {
         MunitionTree mt = new MunitionTree();
         mt.insertImperative("Shadow Hawk", "SHD-2D", "any", "LRM-5", "Dead-Fire");
         MunitionTree copy = new MunitionTree(mt);
         assertNotEquals(mt, copy);
-        assertEquals(copy.getCountOfAmmoForKey("Shadow Hawk", "SHD-2D", "any", "LRM-5", "Dead-Fire"), 1);
+        assertEquals(1, copy.getCountOfAmmoForKey("Shadow Hawk", "SHD-2D", "any", "LRM-5", "Dead-Fire"));
 
         // Add another imperative to mt; copy shouldn't see it.
         mt.insertImperative("any", "any", "any", "LRM", "Standard:Heat-Seeking:Semi-Guided");
-        assertEquals(copy.getCountOfAmmoForKey("Catapult", "CPLT-C1", "Werner Herzgod", "LRM-15", "Standard"), 0);
-        assertEquals(mt.getCountOfAmmoForKey("Catapult", "CPLT-C1", "Werner Herzgod", "LRM-15", "Standard"), 1);
+        assertEquals(0, copy.getCountOfAmmoForKey("Catapult", "CPLT-C1", "Werner Herzgod", "LRM-15", "Standard"));
+        assertEquals(1, mt.getCountOfAmmoForKey("Catapult", "CPLT-C1", "Werner Herzgod", "LRM-15", "Standard"));
 
     }
 

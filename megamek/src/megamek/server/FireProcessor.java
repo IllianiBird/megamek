@@ -1,7 +1,6 @@
 /*
-
  * Copyright (C) 2000-2005 Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2018-025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2005-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -42,14 +41,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Vector;
 
-import megamek.common.*;
+import megamek.common.Hex;
+import megamek.common.Report;
 import megamek.common.annotations.Nullable;
+import megamek.common.board.Board;
+import megamek.common.board.BoardLocation;
+import megamek.common.board.Coords;
+import megamek.common.compute.Compute;
+import megamek.common.game.Game;
 import megamek.common.options.OptionsConstants;
-import megamek.common.planetaryconditions.PlanetaryConditions;
-import megamek.common.planetaryconditions.Wind;
-import megamek.common.planetaryconditions.WindDirection;
+import megamek.common.planetaryConditions.PlanetaryConditions;
+import megamek.common.planetaryConditions.Wind;
+import megamek.common.planetaryConditions.WindDirection;
+import megamek.common.rolls.TargetRoll;
+import megamek.common.units.Building;
+import megamek.common.units.Entity;
+import megamek.common.units.Terrain;
+import megamek.common.units.Terrains;
 import megamek.logging.MMLogger;
-import megamek.server.totalwarfare.TWGameManager;
+import megamek.server.totalWarfare.TWGameManager;
 
 public class FireProcessor extends DynamicTerrainProcessor {
     private static final MMLogger logger = MMLogger.create(FireProcessor.class);
@@ -124,7 +134,7 @@ public class FireProcessor extends DynamicTerrainProcessor {
                 Hex currentHex = board.getHex(currentXCoord, currentYCoord);
 
                 if (currentHex.containsTerrain(Terrains.FIRE)) {
-                    // If the woods has been cleared, or the building
+                    // If the woods have been cleared, or the building
                     // has collapsed put non-inferno fires out.
                     if ((currentHex.terrainLevel(Terrains.FIRE) == Terrains.FIRE_LVL_NORMAL)
                           && !currentHex.isIgnitable()) {
@@ -186,7 +196,7 @@ public class FireProcessor extends DynamicTerrainProcessor {
                     boolean bInferno = currentHex.terrainLevel(Terrains.FIRE) == 2;
                     PlanetaryConditions conditions = game.getPlanetaryConditions();
                     if (conditions.getWind().isWeakerThan(Wind.TORNADO_F1_TO_F3)
-                          && !(game.getOptions().booleanOption(OptionsConstants.ADVCOMBAT_FOREST_FIRES_NO_SMOKE)
+                          && !(game.getOptions().booleanOption(OptionsConstants.ADVANCED_COMBAT_FOREST_FIRES_NO_SMOKE)
                           && containsForest
                           && (bldg == null))) {
                         ArrayList<Coords> smokeList = new ArrayList<>();
@@ -243,19 +253,19 @@ public class FireProcessor extends DynamicTerrainProcessor {
 
         final int curHeight = board.getHex(src).ceiling();
 
-        TargetRoll directroll = new TargetRoll(9, "spread downwind");
-        TargetRoll obliqueroll = new TargetRoll(11, "spread 60 degrees to downwind");
+        TargetRoll directRoll = new TargetRoll(9, "spread downwind");
+        TargetRoll obliqueRoll = new TargetRoll(11, "spread 60 degrees to downwind");
 
         if (windStr.isLightGale()
               || windStr.isModerateGale()) {
-            directroll.addModifier(-2, "light/moderate gale");
-            obliqueroll.addModifier(-1, "light/moderate gale");
+            directRoll.addModifier(-2, "light/moderate gale");
+            obliqueRoll.addModifier(-1, "light/moderate gale");
         } else if (windStr.isStrongerThan(Wind.MOD_GALE)) {
-            directroll.addModifier(-3, "strong gale+");
-            directroll.addModifier(-2, "strong gale+");
+            directRoll.addModifier(-3, "strong gale+");
+            directRoll.addModifier(-2, "strong gale+");
         }
 
-        spreadFire(board, src, nextCoords, directroll, curHeight);
+        spreadFire(board, src, nextCoords, directRoll, curHeight);
 
         // Spread to the next hex downwind on a 12 if the first hex wasn't
         // burning...
@@ -265,15 +275,15 @@ public class FireProcessor extends DynamicTerrainProcessor {
         if ((nextHex != null) && (jumpHex != null) && !(nextHex.containsTerrain(Terrains.FIRE))
               && ((curHeight >= nextHex.ceiling()) || (jumpHex.ceiling() >= nextHex.ceiling()))) {
             // we've already gone one step in the wind direction, now go another
-            directroll.addModifier(3, "crossing non-burning hex");
-            spreadFire(board, src, nextCoords.translated(windDir.ordinal()), directroll, curHeight);
+            directRoll.addModifier(3, "crossing non-burning hex");
+            spreadFire(board, src, nextCoords.translated(windDir.ordinal()), directRoll, curHeight);
         }
 
         // spread fire 60 degrees clockwise....
-        spreadFire(board, src, src.translated(windDir.rotateClockwise().ordinal()), obliqueroll, curHeight);
+        spreadFire(board, src, src.translated(windDir.rotateClockwise().ordinal()), obliqueRoll, curHeight);
 
         // spread fire 60 degrees counterclockwise
-        spreadFire(board, src, src.translated(windDir.rotateCounterClockwise().ordinal()), obliqueroll, curHeight);
+        spreadFire(board, src, src.translated(windDir.rotateCounterClockwise().ordinal()), obliqueRoll, curHeight);
     }
 
     /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2021-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -34,6 +34,9 @@ package megamek.common;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import megamek.common.equipment.EquipmentType;
+import megamek.common.units.Jumpship;
+import megamek.common.util.RoundWeight;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 

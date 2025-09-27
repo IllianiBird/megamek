@@ -1,7 +1,6 @@
 /*
-
  * Copyright (C) 2005 Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2005-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -39,18 +38,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Vector;
 
-import megamek.common.Board;
-import megamek.common.BoardLocation;
-import megamek.common.Compute;
-import megamek.common.Coords;
 import megamek.common.Hex;
 import megamek.common.Report;
-import megamek.common.Terrain;
-import megamek.common.Terrains;
-import megamek.server.totalwarfare.TWGameManager;
+import megamek.common.board.Board;
+import megamek.common.board.BoardLocation;
+import megamek.common.board.Coords;
+import megamek.common.compute.Compute;
+import megamek.common.units.Terrain;
+import megamek.common.units.Terrains;
+import megamek.server.totalWarfare.TWGameManager;
 
 /**
- * This is for simulating the vertically moving walls in the Solaris 7 colloseum.
+ * This is for simulating the vertically moving walls in the Solaris 7 coliseum.
  */
 public class ElevatorProcessor extends DynamicTerrainProcessor {
 

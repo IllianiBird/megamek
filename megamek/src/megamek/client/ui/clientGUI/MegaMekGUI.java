@@ -34,7 +34,7 @@
  */
 package megamek.client.ui.clientGUI;
 
-import static megamek.common.Compute.d6;
+import static megamek.common.compute.Compute.d6;
 
 import java.awt.*;
 import java.awt.event.ActionListener;
@@ -103,9 +103,18 @@ import megamek.client.ui.widget.SkinSpecification.UIComponents;
 import megamek.client.ui.widget.SkinXMLHandler;
 import megamek.client.ui.widget.SkinnedJPanel;
 import megamek.codeUtilities.StringUtility;
-import megamek.common.*;
+import megamek.common.Configuration;
+import megamek.common.KeyBindParser;
+import megamek.common.Player;
 import megamek.common.annotations.Nullable;
-import megamek.common.jacksonadapters.BotParser;
+import megamek.common.compute.Compute;
+import megamek.common.game.Game;
+import megamek.common.game.GameType;
+import megamek.common.game.IGame;
+import megamek.common.interfaces.PlanetaryConditionsUsing;
+import megamek.common.jacksonAdapters.BotParser;
+import megamek.common.loaders.MekFileParser;
+import megamek.common.loaders.MekSummaryCache;
 import megamek.common.options.IBasicOption;
 import megamek.common.options.IOption;
 import megamek.common.preference.IPreferenceChangeListener;
@@ -118,11 +127,12 @@ import megamek.common.util.ImageUtil;
 import megamek.common.util.ManagedVolatileImage;
 import megamek.common.util.TipOfTheDay;
 import megamek.common.util.fileUtils.MegaMekFile;
+import megamek.common.weapons.handlers.WeaponOrderHandler;
 import megamek.logging.MMLogger;
 import megamek.server.IGameManager;
 import megamek.server.Server;
 import megamek.server.sbf.SBFGameManager;
-import megamek.server.totalwarfare.TWGameManager;
+import megamek.server.totalWarfare.TWGameManager;
 import megamek.utilities.xml.MMXMLUtility;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -132,9 +142,9 @@ import org.w3c.dom.NodeList;
 public class MegaMekGUI implements IPreferenceChangeListener {
     private static final MMLogger LOGGER = MMLogger.create(MegaMekGUI.class);
 
-    private static final String FILENAME_MEGAMEK_SPLASH = "../misc/background.jpg";
-    private static final String FILENAME_MEDAL = "../misc/medal.png";
-    private static final String FILENAME_LOGO = "../misc/logo.png";
+    private static final String FILENAME_MEGAMEK_SPLASH = "../misc/mm-background.jpg";
+    private static final String FILENAME_MEDAL = "../misc/mm-medal.png";
+    private static final String FILENAME_LOGO = "../misc/mm-logo.png";
     private static final String FILENAME_ICON_16X16 = "megamek-icon-16x16.png";
     private static final String FILENAME_ICON_32X32 = "megamek-icon-32x32.png";
     private static final String FILENAME_ICON_48X48 = "megamek-icon-48x48.png";

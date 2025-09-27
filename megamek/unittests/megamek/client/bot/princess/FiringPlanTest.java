@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2000-2011 - Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2022-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2014-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -43,14 +43,14 @@ import static org.mockito.Mockito.when;
 import java.util.EnumSet;
 import java.util.Vector;
 
-import megamek.common.AmmoType;
-import megamek.common.Mounted;
-import megamek.common.Targetable;
-import megamek.common.WeaponType;
 import megamek.common.actions.EntityAction;
 import megamek.common.actions.WeaponAttackAction;
 import megamek.common.equipment.AmmoMounted;
+import megamek.common.equipment.AmmoType;
+import megamek.common.equipment.Mounted;
 import megamek.common.equipment.WeaponMounted;
+import megamek.common.equipment.WeaponType;
+import megamek.common.units.Targetable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -125,7 +125,7 @@ class FiringPlanTest {
     }
 
     @Test
-    void testGetExpectedCriticals() {
+    void testGetExpectedCriticalSlots() {
         when(mockWeaponFireInfoMG.getExpectedCriticals()).thenReturn(0.0);
         when(mockWeaponFireInfoPPC.getExpectedCriticals()).thenReturn(0.423);
         when(mockWeaponFireInfoERML.getExpectedCriticals()).thenReturn(0.015);
@@ -207,7 +207,7 @@ class FiringPlanTest {
         when(mockInfoLRM.getWeapon()).thenReturn(mockLRM);
         WeaponType mockTypeLRM = mock(WeaponType.class);
         when(mockLRM.getType()).thenReturn(mockTypeLRM);
-        when(mockTypeLRM.getDamage()).thenReturn(WeaponType.DAMAGE_BY_CLUSTERTABLE);
+        when(mockTypeLRM.getDamage()).thenReturn(WeaponType.DAMAGE_BY_CLUSTER_TABLE);
         AmmoMounted mockAmmoLRM = mock(AmmoMounted.class);
         when(mockLRM.getLinkedAmmo()).thenReturn(mockAmmoLRM);
         AmmoType mockAmmoTypeLRM = mock(AmmoType.class);
@@ -239,7 +239,7 @@ class FiringPlanTest {
         when(mockInfoSRM.getWeapon()).thenReturn(mockSRM);
         WeaponType mockTypeSRM = mock(WeaponType.class);
         when(mockSRM.getType()).thenReturn(mockTypeSRM);
-        when(mockTypeSRM.getDamage()).thenReturn(WeaponType.DAMAGE_BY_CLUSTERTABLE);
+        when(mockTypeSRM.getDamage()).thenReturn(WeaponType.DAMAGE_BY_CLUSTER_TABLE);
         AmmoMounted mockAmmoSRM = mock(AmmoMounted.class);
         when(mockSRM.getLinkedAmmo()).thenReturn(mockAmmoSRM);
         AmmoType mockAmmoTypeSRM = mock(AmmoType.class);

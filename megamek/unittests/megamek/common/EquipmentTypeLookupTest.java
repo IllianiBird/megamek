@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2019-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -38,7 +38,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.StringJoiner;
 
-import megamek.common.EquipmentTypeLookup.EquipmentName;
+import megamek.common.equipment.EquipmentType;
+import megamek.common.equipment.EquipmentTypeLookup;
+import megamek.common.equipment.EquipmentTypeLookup.EquipmentName;
 import org.junit.jupiter.api.Test;
 
 class EquipmentTypeLookupTest {

@@ -74,7 +74,7 @@ public class MMXMLUtility {
     public static DocumentBuilder newSafeDocumentBuilder() throws ParserConfigurationException {
         DocumentBuilderFactory dbf = DOCUMENT_BUILDER_FACTORY;
         if (null == dbf) {
-            // At worst we may do this twice if multiple threads
+            // At worst, we may do this twice if multiple threads
             // hit this method. It is Ok to have more than one
             // instance of the builder factory, as long as it is
             // XXE safe.
@@ -300,7 +300,8 @@ public class MMXMLUtility {
     }
 
     /**
-     * This writes a String or an array of Strings to file, with an the possible addition of an attribute and its value
+     * This writes a String or an array of Strings to file, with and the possible addition of an attribute and its
+     * value
      *
      * @param pw             the PrintWriter to use
      * @param indent         the indent to write at
@@ -389,7 +390,7 @@ public class MMXMLUtility {
     // region Close Tag
 
     /**
-     * This writes a XML close tag to file
+     * This writes an XML close tag to file
      *
      * @param pw     the PrintWriter to use
      * @param indent the indent to write at
@@ -424,7 +425,7 @@ public class MMXMLUtility {
     // region XML Parsing
 
     /**
-     * This parses an collection of UUIDs
+     * This parses a collection of UUIDs
      *
      * @param values the XML text to parse containing a comma separated UUID collection
      * @param ids    the collection to load the UUIDs into
@@ -473,7 +474,7 @@ public class MMXMLUtility {
     }
 
     /**
-     * This parses an collection of LocalDates
+     * This parses a collection of LocalDates
      *
      * @param values the XML text to parse containing a comma separated LocalDate collection
      * @param dates  the collection to load the LocalDates into

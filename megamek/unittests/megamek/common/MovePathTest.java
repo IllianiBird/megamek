@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2000-2005 - Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2022-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2013-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -42,10 +42,14 @@ import static org.mockito.Mockito.when;
 
 import java.util.Vector;
 
+import megamek.common.enums.MoveStepType;
+import megamek.common.game.Game;
 import megamek.common.moves.MovePath;
 import megamek.common.moves.MoveStep;
 import megamek.common.options.GameOptions;
-import megamek.common.planetaryconditions.PlanetaryConditions;
+import megamek.common.planetaryConditions.PlanetaryConditions;
+import megamek.common.units.BipedMek;
+import megamek.common.units.Entity;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -100,7 +104,7 @@ class MovePathTest {
 
         MovePath movePath = new MovePath(mockGame, mockMek);
         try {
-            for (MovePath.MoveStepType stepType : MovePath.MoveStepType.values()) {
+            for (MoveStepType stepType : MoveStepType.values()) {
                 MovePath pathToTest = movePath.clone();
                 pathToTest.addStep(stepType);
             }

@@ -58,8 +58,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import megamek.common.Configuration;
-import megamek.common.MekSummary;
-import megamek.common.MekSummaryCache;
+import megamek.common.loaders.MekSummary;
+import megamek.common.loaders.MekSummaryCache;
 import megamek.logging.MMLogger;
 
 /**
@@ -132,8 +132,8 @@ public class RandomUnitGenerator implements Serializable {
 
         // Give the MSC some time to initialize
         MekSummaryCache msc = MekSummaryCache.getInstance();
-        long waitLimit = System.currentTimeMillis() + 3000; /* 3 seconds */
-        while (!interrupted && !msc.isInitialized() && waitLimit > System.currentTimeMillis()) {
+        long waitLimit = java.lang.System.currentTimeMillis() + 3000; /* 3 seconds */
+        while (!interrupted && !msc.isInitialized() && waitLimit > java.lang.System.currentTimeMillis()) {
             try {
                 Thread.sleep(50);
             } catch (InterruptedException ignored) {
@@ -181,7 +181,7 @@ public class RandomUnitGenerator implements Serializable {
                     return;
                 }
 
-                if (line.startsWith("#")) {
+                if (line.startsWith("#") || line.isBlank()) {
                     continue;
                 }
 
@@ -471,9 +471,9 @@ public class RandomUnitGenerator implements Serializable {
             rug.initializing = true;
             interrupted = false;
             rug.loader = new Thread(() -> {
-                long start = System.currentTimeMillis();
+                long start = java.lang.System.currentTimeMillis();
                 rug.populateUnits();
-                long end = System.currentTimeMillis();
+                long end = java.lang.System.currentTimeMillis();
                 LOGGER.info("Loaded Rats in: {}ms", end - start);
             }, "Random Unit Generator Unit Populater");
             rug.loader.setPriority(Thread.NORM_PRIORITY - 1);

@@ -33,7 +33,8 @@
 
 package megamek.server.trigger;
 
-import megamek.common.IGame;
+import jakarta.annotation.Nonnull;
+import megamek.common.game.IGame;
 
 /**
  * This Trigger reacts at the end of the specified game round. This is more or less the same as a RoundStartTrigger of
@@ -41,13 +42,7 @@ import megamek.common.IGame;
  * (e.g. ending the game at the end of round 10 instead of at the beginning of round 11). Note that this Trigger can
  * react multiple times!
  */
-public final class SpecificRoundEndTrigger implements Trigger {
-
-    private final int gameRound;
-
-    public SpecificRoundEndTrigger(int round) {
-        gameRound = round;
-    }
+public record SpecificRoundEndTrigger(int gameRound) implements Trigger {
 
     @Override
     public boolean isTriggered(IGame game, TriggerSituation event) {
@@ -55,6 +50,7 @@ public final class SpecificRoundEndTrigger implements Trigger {
     }
 
     @Override
+    @Nonnull
     public String toString() {
         return "GameRound End: " + gameRound;
     }

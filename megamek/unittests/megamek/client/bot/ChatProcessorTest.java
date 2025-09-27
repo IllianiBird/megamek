@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2000-2011 - Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2022-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2013-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -51,11 +51,11 @@ import megamek.client.bot.princess.BehaviorSettingsFactory;
 import megamek.client.bot.princess.CardinalEdge;
 import megamek.client.bot.princess.ChatCommands;
 import megamek.client.bot.princess.Princess;
-import megamek.common.Board;
-import megamek.common.Coords;
-import megamek.common.Game;
 import megamek.common.Player;
-import megamek.common.event.GamePlayerChatEvent;
+import megamek.common.board.Board;
+import megamek.common.board.Coords;
+import megamek.common.event.player.GamePlayerChatEvent;
+import megamek.common.game.Game;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;

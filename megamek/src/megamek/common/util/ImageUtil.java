@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2000-2016 Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2018-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2016-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -58,9 +58,9 @@ import megamek.MMConstants;
 import megamek.client.ui.util.ImageAtlasMap;
 import megamek.client.ui.util.ImprovedAveragingScaleFilter;
 import megamek.client.ui.util.UIUtil;
-import megamek.common.Coords;
 import megamek.common.Report;
 import megamek.common.annotations.Nullable;
+import megamek.common.board.Coords;
 import megamek.common.util.fileUtils.MegaMekFile;
 import megamek.logging.MMLogger;
 
@@ -508,7 +508,7 @@ public final class ImageUtil {
         FinishedLoadingObserver observer = new FinishedLoadingObserver(Thread.currentThread());
         // Check to see if the image is loaded
         if (!Toolkit.getDefaultToolkit().prepareImage(result, -1, -1, observer)) {
-            long startTime = System.currentTimeMillis();
+            long startTime = java.lang.System.currentTimeMillis();
             long maxRuntime = 10000;
             long runTime = 0;
             while (!observer.isLoaded() && runTime < maxRuntime) {
@@ -519,7 +519,7 @@ public final class ImageUtil {
                     // Do nothing
                 }
 
-                runTime = System.currentTimeMillis() - startTime;
+                runTime = java.lang.System.currentTimeMillis() - startTime;
             }
         }
         return observer.isAnimated();

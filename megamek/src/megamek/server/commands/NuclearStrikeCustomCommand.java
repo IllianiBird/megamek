@@ -37,12 +37,12 @@ import java.util.List;
 import java.util.Optional;
 
 import megamek.client.ui.Messages;
-import megamek.common.AmmoType;
-import megamek.common.Entity;
 import megamek.common.Player;
 import megamek.common.actions.NukeDetonatedAction;
-import megamek.common.event.GamePlayerStrategicActionEvent;
+import megamek.common.equipment.AmmoType;
+import megamek.common.event.player.GamePlayerStrategicActionEvent;
 import megamek.common.options.OptionsConstants;
+import megamek.common.units.Entity;
 import megamek.server.Server;
 import megamek.server.commands.arguments.Argument;
 import megamek.server.commands.arguments.Arguments;
@@ -50,7 +50,7 @@ import megamek.server.commands.arguments.CoordXArgument;
 import megamek.server.commands.arguments.CoordYArgument;
 import megamek.server.commands.arguments.IntegerArgument;
 import megamek.server.commands.arguments.OptionalIntegerArgument;
-import megamek.server.totalwarfare.TWGameManager;
+import megamek.server.totalWarfare.TWGameManager;
 
 /**
  * @author Luana Coppio
@@ -59,8 +59,8 @@ public class NuclearStrikeCustomCommand extends ClientServerCommand {
 
     /** Creates new NukeCommand */
     public NuclearStrikeCustomCommand(Server server, TWGameManager gameManager) {
-        super(server, gameManager, "nsc", Messages.getString("Gamemaster.cmd.nukec.help"),
-              Messages.getString("Gamemaster.cmd.nukec.longName"));
+        super(server, gameManager, "nsc", Messages.getString("Gamemaster.cmd.nukeCommand.help"),
+              Messages.getString("Gamemaster.cmd.nukeCommand.longName"));
     }
 
     @Override
@@ -68,10 +68,10 @@ public class NuclearStrikeCustomCommand extends ClientServerCommand {
         return List.of(
               new CoordXArgument("x", Messages.getString("Gamemaster.cmd.x")),
               new CoordYArgument("y", Messages.getString("Gamemaster.cmd.y")),
-              new IntegerArgument("dmg", Messages.getString("Gamemaster.cmd.nukec.dmg"), 0, 1_000_000),
-              new IntegerArgument("deg", Messages.getString("Gamemaster.cmd.nukec.deg"), 0, 1_000_000),
-              new IntegerArgument("radius", Messages.getString("Gamemaster.cmd.nukec.radius"), 1, 1000),
-              new IntegerArgument("depth", Messages.getString("Gamemaster.cmd.nukec.depth"), 0, 9),
+              new IntegerArgument("dmg", Messages.getString("Gamemaster.cmd.nukeCommand.dmg"), 0, 1_000_000),
+              new IntegerArgument("deg", Messages.getString("Gamemaster.cmd.nukeCommand.deg"), 0, 1_000_000),
+              new IntegerArgument("radius", Messages.getString("Gamemaster.cmd.nukeCommand.radius"), 1, 1000),
+              new IntegerArgument("depth", Messages.getString("Gamemaster.cmd.nukeCommand.depth"), 0, 9),
               new OptionalIntegerArgument("playerID", Messages.getString("Gamemaster.cmd.playerID"))
         );
     }

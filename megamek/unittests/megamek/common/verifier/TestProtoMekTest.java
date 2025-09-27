@@ -42,17 +42,16 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.List;
 
-import megamek.common.BipedMek;
-import megamek.common.Engine;
-import megamek.common.Entity;
-import megamek.common.EntityMovementMode;
-import megamek.common.EquipmentType;
-import megamek.common.Mounted;
-import megamek.common.ProtoMek;
-import megamek.common.RoundWeight;
 import megamek.common.TechConstants;
+import megamek.common.equipment.Engine;
+import megamek.common.equipment.EquipmentType;
+import megamek.common.equipment.Mounted;
 import megamek.common.equipment.WeaponMounted;
-import megamek.common.verifier.TestEntity.Ceil;
+import megamek.common.units.BipedMek;
+import megamek.common.units.Entity;
+import megamek.common.units.EntityMovementMode;
+import megamek.common.units.ProtoMek;
+import megamek.common.util.RoundWeight;
 import org.junit.jupiter.api.Test;
 
 public class TestProtoMekTest {
@@ -129,7 +128,7 @@ public class TestProtoMekTest {
         }
 
         @Override
-        public boolean showUnderweightedEntity() {
+        public boolean showUnderweightEntity() {
             return false;
         }
 
@@ -174,7 +173,7 @@ public class TestProtoMekTest {
         }
 
         @Override
-        public int getTargCompCrits() {
+        public int getTargetingComputerCrits() {
             return 0;
         }
 
@@ -191,7 +190,7 @@ public class TestProtoMekTest {
         // walking 6
         when(mockProtoMek.getOriginalWalkMP()).thenReturn(4);
 
-        assertEquals(TestProtoMek.calcEngineRating(mockProtoMek), 36);
+        assertEquals(36, TestProtoMek.calcEngineRating(mockProtoMek));
     }
 
     @Test
@@ -202,7 +201,7 @@ public class TestProtoMekTest {
         // running 6, engine rating calculated as running - 2
         when(mockProtoMek.getOriginalWalkMP()).thenReturn(4);
 
-        assertEquals(TestProtoMek.calcEngineRating(mockProtoMek), 24);
+        assertEquals(24, TestProtoMek.calcEngineRating(mockProtoMek));
     }
 
     @Test
@@ -213,7 +212,7 @@ public class TestProtoMekTest {
         // running 6, engine rating calculated as running - 2
         when(mockProtoMek.getOriginalWalkMP()).thenReturn(4);
 
-        assertEquals(TestProtoMek.calcEngineRating(mockProtoMek), 24);
+        assertEquals(24, TestProtoMek.calcEngineRating(mockProtoMek));
     }
 
     @Test
@@ -236,17 +235,17 @@ public class TestProtoMekTest {
     @Test
     public void testMaxArmorFactor() {
         // Beginning of non-ultra range
-        assertEquals(TestProtoMek.maxArmorFactor(2.0, false), 15);
-        assertEquals(TestProtoMek.maxArmorFactor(2.0, true), 18);
+        assertEquals(15, TestProtoMek.maxArmorFactor(2.0, false));
+        assertEquals(18, TestProtoMek.maxArmorFactor(2.0, true));
         // End of non-ultra range
-        assertEquals(TestProtoMek.maxArmorFactor(9.0, false), 42);
-        assertEquals(TestProtoMek.maxArmorFactor(9.0, true), 45);
+        assertEquals(42, TestProtoMek.maxArmorFactor(9.0, false));
+        assertEquals(45, TestProtoMek.maxArmorFactor(9.0, true));
         // Beginning of ultra range
-        assertEquals(TestProtoMek.maxArmorFactor(10.0, false), 51);
-        assertEquals(TestProtoMek.maxArmorFactor(10.0, true), 57);
+        assertEquals(51, TestProtoMek.maxArmorFactor(10.0, false));
+        assertEquals(57, TestProtoMek.maxArmorFactor(10.0, true));
         // End of ultra range
-        assertEquals(TestProtoMek.maxArmorFactor(15.0, false), 67);
-        assertEquals(TestProtoMek.maxArmorFactor(15.0, true), 73);
+        assertEquals(67, TestProtoMek.maxArmorFactor(15.0, false));
+        assertEquals(73, TestProtoMek.maxArmorFactor(15.0, true));
     }
 
     @Test
@@ -348,7 +347,7 @@ public class TestProtoMekTest {
         ProtoMek mockProtoMek = createGenericMockProtoMek();
         when(mockProtoMek.isQuad()).thenReturn(true);
         Mounted<?> m = Mounted.createMounted(mockProtoMek, EquipmentType.get("CLERSmallLaser"));
-        m.setLocation(ProtoMek.LOC_LARM);
+        m.setLocation(ProtoMek.LOC_LEFT_ARM);
         List<Mounted<?>> eqList = new ArrayList<>();
         eqList.add(m);
         when(mockProtoMek.getEquipment()).thenReturn(eqList);
@@ -387,11 +386,11 @@ public class TestProtoMekTest {
 
         m.setLocation(ProtoMek.LOC_TORSO, true);
         assertFalse(test.hasIllegalEquipmentCombinations(new StringBuffer()));
-        m.setLocation(ProtoMek.LOC_LARM, true);
+        m.setLocation(ProtoMek.LOC_LEFT_ARM, true);
         assertTrue(test.hasIllegalEquipmentCombinations(new StringBuffer()));
-        m.setLocation(ProtoMek.LOC_RARM, true);
+        m.setLocation(ProtoMek.LOC_RIGHT_ARM, true);
         assertTrue(test.hasIllegalEquipmentCombinations(new StringBuffer()));
-        m.setLocation(ProtoMek.LOC_MAINGUN, true);
+        m.setLocation(ProtoMek.LOC_MAIN_GUN, true);
         assertTrue(test.hasIllegalEquipmentCombinations(new StringBuffer()));
     }
 

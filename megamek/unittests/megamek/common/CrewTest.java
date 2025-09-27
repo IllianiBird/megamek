@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2000-2005 - Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2022-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2013-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -40,8 +40,13 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import megamek.common.battlevalue.BVCalculator;
+import megamek.common.battleValue.BVCalculator;
+import megamek.common.game.Game;
 import megamek.common.options.GameOptions;
+import megamek.common.units.Crew;
+import megamek.common.units.CrewType;
+import megamek.common.units.Infantry;
+import megamek.common.units.Mek;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -140,7 +145,7 @@ class CrewTest {
         int piloting = 5;
 
         // Test the default case.
-        Game mockGame = null;
+        Game mockGame;
         double expected = 1.0;
         double actual = BVCalculator.bvSkillMultiplier(gunnery, piloting);
         assertEquals(expected, actual, 0.001);
@@ -148,7 +153,6 @@ class CrewTest {
         mockGame = mock(Game.class);
         GameOptions mockOptions = mock(GameOptions.class);
         when(mockGame.getOptions()).thenReturn(mockOptions);
-        expected = 1.0;
         actual = BVCalculator.bvSkillMultiplier(gunnery, piloting);
         assertEquals(expected, actual, 0.001);
 
@@ -170,7 +174,6 @@ class CrewTest {
 
         // Test a 2/6 pilot.
         gunnery = 2;
-        piloting = 6;
         when(mockOptions.booleanOption(eq("alternate_pilot_bv_mod"))).thenReturn(false);
         expected = 1.35;
         actual = BVCalculator.bvSkillMultiplier(gunnery, piloting);

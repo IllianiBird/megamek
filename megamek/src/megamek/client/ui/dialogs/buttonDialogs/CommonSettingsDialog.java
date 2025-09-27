@@ -93,9 +93,9 @@ import megamek.client.ui.widget.SkinXMLHandler;
 import megamek.codeUtilities.MathUtility;
 import megamek.common.Configuration;
 import megamek.common.KeyBindParser;
-import megamek.common.MapSettings;
 import megamek.common.enums.GamePhase;
 import megamek.common.enums.WeaponSortOrder;
+import megamek.common.loaders.MapSettings;
 import megamek.common.preference.ClientPreferences;
 import megamek.common.preference.PreferenceManager;
 import megamek.common.util.BoardUtilities;
@@ -2253,7 +2253,7 @@ public class CommonSettingsDialog extends AbstractButtonDialog
             showIPAddressesInChat.setSelected(CLIENT_PREFERENCES.getShowIPAddressesInChat());
             startSearchlightsOn.setSelected(CLIENT_PREFERENCES.getStartSearchlightsOn());
 
-            defaultAutoEjectDisabled.setSelected(CLIENT_PREFERENCES.defaultAutoejectDisabled());
+            defaultAutoEjectDisabled.setSelected(CLIENT_PREFERENCES.defaultAutoEjectDisabled());
             useAverageSkills.setSelected(CLIENT_PREFERENCES.useAverageSkills());
             useGPinUnitSelection.setSelected(CLIENT_PREFERENCES.useGPinUnitSelection());
             generateNames.setSelected(CLIENT_PREFERENCES.generateNames());
@@ -2320,7 +2320,7 @@ public class CommonSettingsDialog extends AbstractButtonDialog
                 xmlFiles.addAll(filteredFilesWithSubDirs(userDir, ".xml"));
             }
 
-            File internalUserDataDir = new File(Configuration.userdataDir(), Configuration.skinsDir().toString());
+            File internalUserDataDir = new File(Configuration.userDataDir(), Configuration.skinsDir().toString());
             xmlFiles.addAll(filteredFiles(internalUserDataDir, ".xml"));
             xmlFiles.removeIf(file -> !SkinXMLHandler.validSkinSpecFile(file));
             Collections.sort(xmlFiles);
@@ -2746,7 +2746,7 @@ public class CommonSettingsDialog extends AbstractButtonDialog
         CLIENT_PREFERENCES.setShowIPAddressesInChat(showIPAddressesInChat.isSelected());
         CLIENT_PREFERENCES.setStartSearchlightsOn(startSearchlightsOn.isSelected());
         CLIENT_PREFERENCES.setEnableExperimentalBotFeatures(enableExperimentalBotFeatures.isSelected());
-        CLIENT_PREFERENCES.setDefaultAutoejectDisabled(defaultAutoEjectDisabled.isSelected());
+        CLIENT_PREFERENCES.setDefaultAutoEjectDisabled(defaultAutoEjectDisabled.isSelected());
         CLIENT_PREFERENCES.setUseAverageSkills(useAverageSkills.isSelected());
         CLIENT_PREFERENCES.setUseGpInUnitSelection(useGPinUnitSelection.isSelected());
         CLIENT_PREFERENCES.setGenerateNames(generateNames.isSelected());
@@ -3811,7 +3811,7 @@ public class CommonSettingsDialog extends AbstractButtonDialog
      */
     public static List<String> userDataFiles(File relativePath, String fileEnding) {
         List<String> result = new ArrayList<>();
-        File dir = new File(Configuration.userdataDir(), relativePath.toString());
+        File dir = new File(Configuration.userDataDir(), relativePath.toString());
         String[] userDataFiles = dir.list((directory, name) -> name.endsWith(fileEnding));
         if (userDataFiles != null) {
             result.addAll(Arrays.asList(userDataFiles));

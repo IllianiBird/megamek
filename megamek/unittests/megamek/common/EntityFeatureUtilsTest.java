@@ -40,6 +40,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import java.util.List;
 
 import megamek.ai.utility.EntityFeatureUtils;
+import megamek.common.battleArmor.BattleArmor;
+import megamek.common.equipment.GunEmplacement;
+import megamek.common.units.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -51,7 +54,6 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 public class EntityFeatureUtilsTest {
 
-    private static final MekSummaryCache mekSummaryCache = MekSummaryCache.getInstance(true);
     private static Warship warship;
     private static SpaceStation spaceStation;
     private static Jumpship jumpship;

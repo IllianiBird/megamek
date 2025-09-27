@@ -38,12 +38,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
-import megamek.common.Board;
-import megamek.common.BoardLocation;
-import megamek.common.Coords;
-import megamek.common.Entity;
-import megamek.common.Game;
-import megamek.common.LargeSupportTank;
+import megamek.common.board.Board;
+import megamek.common.board.BoardLocation;
+import megamek.common.board.Coords;
+import megamek.common.game.Game;
+import megamek.common.units.Entity;
+import megamek.common.units.LargeSupportTank;
 
 /**
  * When deploying units that are towing units, let's mark hexes that would break the tow linkage with warning. or
@@ -159,12 +159,16 @@ public class TowLinkWarning {
             Entity testEntity = game.getEntity(closestDeployedTractor.getTowing());
             int count = 0;
 
-            while ((testEntity != null) && (!testEntity.equals(deployingEntity)) && (count < MAX_SEARCH_DEPTH)) {
+            do {
                 possibleCoords = getValidDeploymentCoords(testEntity, board, useAdjacentHex, possibleCoords);
-                testEntity = game.getEntity(testEntity.getTowing());
+
+                if (testEntity != null) {
+                    testEntity = game.getEntity(testEntity.getTowing());
+                }
+
                 useAdjacentHex = !useAdjacentHex || testEntity instanceof LargeSupportTank;
                 count++;
-            }
+            } while ((testEntity != null) && (!testEntity.equals(deployingEntity)) && (count < MAX_SEARCH_DEPTH));
 
             if (count >= MAX_SEARCH_DEPTH) {
                 throw new StackOverflowError("Towing length too deep, could not path back to trailer");
@@ -216,13 +220,17 @@ public class TowLinkWarning {
             Entity testEntity = game.getEntity(closestDeployedTrailer.getTowedBy());
             int count = 0;
 
-            while ((testEntity != null) && (deployingEntity.getTowedBy() != testEntity.getId()) && (count
-                  < MAX_SEARCH_DEPTH)) {
+            do {
                 possibleCoords = getValidDeploymentCoords(testEntity, board, useAdjacentHex, possibleCoords);
                 useAdjacentHex = !useAdjacentHex || testEntity instanceof LargeSupportTank;
-                testEntity = game.getEntity(testEntity.getTowedBy());
+
+                if (testEntity != null) {
+                    testEntity = game.getEntity(testEntity.getTowedBy());
+                }
+                
                 count++;
-            }
+            } while ((testEntity != null) && (deployingEntity.getTowedBy() != testEntity.getId()) && (count
+                  < MAX_SEARCH_DEPTH));
 
             if (count >= MAX_SEARCH_DEPTH) {
                 throw new StackOverflowError("Towing length too deep, could not path back to tractor");

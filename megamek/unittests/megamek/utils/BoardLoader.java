@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2005 Ben Mazur (bmazur@sev.org)
+ * Copyright (C) 2005 Ben Mazur (bmazur@sev.org)
  * Copyright (C) 2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
@@ -36,7 +36,7 @@ package megamek.utils;
 import java.util.ArrayList;
 import java.util.List;
 
-import megamek.common.Board;
+import megamek.common.board.Board;
 
 /**
  * Utility class to load a board from a string representation.

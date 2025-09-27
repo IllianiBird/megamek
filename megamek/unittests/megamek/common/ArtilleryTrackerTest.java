@@ -35,7 +35,13 @@ package megamek.common;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import megamek.common.board.Coords;
+import megamek.common.equipment.EquipmentType;
 import megamek.common.equipment.WeaponMounted;
+import megamek.common.equipment.WeaponType;
+import megamek.common.exceptions.LocationFullException;
+import megamek.common.rolls.TargetRoll;
+import megamek.common.units.Tank;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -132,7 +138,6 @@ class ArtilleryTrackerTest {
     /**
      * This test shows that any automatic hit mods are removed from _all_ weapons at the same time.
      *
-     * @throws LocationFullException
      */
     @Test
     void test_clearHitHexMods_with_standard_and_autohit_mods_on_two_weapons() throws LocationFullException {

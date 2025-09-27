@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2000-2005 - Ben Mazur (bmazur@sev.org)
  * Copyright (c) 2013 - Edward Cullen (eddy@obsessedcomputers.co.uk)
- * Copyright (C) 2018-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2002-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -63,12 +63,11 @@ import megamek.SuiteConstants;
 import megamek.Version;
 import megamek.client.ui.util.PlayerColour;
 import megamek.codeUtilities.StringUtility;
-import megamek.common.Game;
-import megamek.common.IGame;
 import megamek.common.Player;
-import megamek.common.Roll;
 import megamek.common.annotations.Nullable;
-import megamek.common.commandline.AbstractCommandLineParser.ParseException;
+import megamek.common.commandLine.AbstractCommandLineParser.ParseException;
+import megamek.common.game.Game;
+import megamek.common.game.IGame;
 import megamek.common.icons.Camouflage;
 import megamek.common.net.connections.AbstractConnection;
 import megamek.common.net.enums.PacketCommand;
@@ -76,9 +75,11 @@ import megamek.common.net.events.DisconnectedEvent;
 import megamek.common.net.events.PacketReceivedEvent;
 import megamek.common.net.factories.ConnectionFactory;
 import megamek.common.net.listeners.ConnectionListener;
+import megamek.common.net.packets.InvalidPacketDataException;
 import megamek.common.net.packets.Packet;
 import megamek.common.options.OptionsConstants;
 import megamek.common.preference.PreferenceManager;
+import megamek.common.rolls.Roll;
 import megamek.common.util.EmailService;
 import megamek.common.util.SerializationHelper;
 import megamek.logging.MMLogger;
@@ -401,7 +402,7 @@ public class Server implements Runnable {
         // initialize server socket
         serverSocket = new ServerSocket(port);
 
-        messageOfTheDay = createMotd();
+        messageOfTheDay = createMOTD();
 
         // display server start text
         LOGGER.info("s: starting a new server...");
@@ -474,7 +475,7 @@ public class Server implements Runnable {
     /**
      * Make a default message o' the day containing the version string, and if it was found, the build timestamp
      */
-    private String createMotd() {
+    private String createMOTD() {
         return "Welcome to MegaMek. Server is running version " + SuiteConstants.VERSION;
     }
 
@@ -591,8 +592,13 @@ public class Server implements Runnable {
     /**
      * Allow the player to set whatever parameters he is able to
      */
-    private void receivePlayerInfo(Packet packet, int connId) {
-        Player player = (Player) packet.getObject(0);
+    private void receivePlayerInfo(Packet packet, int connId) throws InvalidPacketDataException {
+        Player player = packet.getPlayer(0);
+
+        if (player == null) {
+            return;
+        }
+
         Player gamePlayer = getGame().getPlayer(connId);
         if (null != gamePlayer) {
             gamePlayer.setColour(player.getColour());
@@ -653,7 +659,7 @@ public class Server implements Runnable {
         return oldName;
     }
 
-    private boolean receivePlayerVersion(Packet packet, int connId) {
+    private boolean receivePlayerVersion(Packet packet, int connId) throws InvalidPacketDataException {
         final Version version = (Version) packet.getObject(0);
 
         if (!SuiteConstants.VERSION.is(version)) {
@@ -676,7 +682,7 @@ public class Server implements Runnable {
     /**
      * Receives a player name, sent from a pending connection, and connects that connection.
      */
-    private void receivePlayerName(Packet packet, int connId) {
+    private void receivePlayerName(Packet packet, int connId) throws InvalidPacketDataException {
         final AbstractConnection conn = getPendingConnection(connId);
         String name = packet.getStringValue(0);
         boolean isBot = packet.getBooleanValue(1);
@@ -1259,73 +1265,77 @@ public class Server implements Runnable {
             return;
         }
         // act on it
-        switch (packet.command()) {
-            case CLIENT_VERSIONS:
-                final boolean valid = receivePlayerVersion(packet, connId);
-                if (valid) {
-                    sendToPending(connId, new Packet(PacketCommand.SERVER_GREETING));
-                } else {
-                    sendToPending(connId, new Packet(PacketCommand.ILLEGAL_CLIENT_VERSION, SuiteConstants.VERSION));
-                    getPendingConnection(connId).close();
-                }
-                break;
-            case CLOSE_CONNECTION:
-                // We have a client going down!
-                AbstractConnection c = getConnection(connId);
-                if (c != null) {
-                    c.close();
-                }
-                break;
-            case CLIENT_NAME:
-                receivePlayerName(packet, connId);
-                break;
-            case PLAYER_UPDATE:
-                receivePlayerInfo(packet, connId);
-                validatePlayerInfo(connId);
-                transmitPlayerUpdate(getPlayer(connId));
-                break;
-            case CHAT:
-                String chat = (String) packet.getObject(0);
-                if (chat.startsWith("/")) {
-                    processCommand(connId, chat);
-                } else if (packet.data().length > 1) {
-                    connId = (int) packet.getObject(1);
-                    if (connId == Player.PLAYER_NONE) {
-                        sendServerChat(chat);
+        try {
+            switch (packet.command()) {
+                case CLIENT_VERSIONS:
+                    final boolean valid = receivePlayerVersion(packet, connId);
+                    if (valid) {
+                        sendToPending(connId, new Packet(PacketCommand.SERVER_GREETING));
                     } else {
-                        sendServerChat(connId, chat);
+                        sendToPending(connId, new Packet(PacketCommand.ILLEGAL_CLIENT_VERSION, SuiteConstants.VERSION));
+                        getPendingConnection(connId).close();
                     }
-                } else {
-                    if (player != null) {
-                        sendChat(player.getName(), chat);
+                    break;
+                case CLOSE_CONNECTION:
+                    // We have a client going down!
+                    AbstractConnection c = getConnection(connId);
+                    if (c != null) {
+                        c.close();
                     }
-                }
+                    break;
+                case CLIENT_NAME:
+                    receivePlayerName(packet, connId);
+                    break;
+                case PLAYER_UPDATE:
+                    receivePlayerInfo(packet, connId);
+                    validatePlayerInfo(connId);
+                    transmitPlayerUpdate(getPlayer(connId));
+                    break;
+                case CHAT:
+                    String chat = packet.getStringValue(0);
+                    if (chat.startsWith("/")) {
+                        processCommand(connId, chat);
+                    } else if (packet.data().length > 1) {
+                        connId = packet.getIntValue(1);
+                        if (connId == Player.PLAYER_NONE) {
+                            sendServerChat(chat);
+                        } else {
+                            sendServerChat(connId, chat);
+                        }
+                    } else {
+                        if (player != null) {
+                            sendChat(player.getName(), chat);
+                        }
+                    }
 
-                // Easter eggs. Happy April Fool's Day!!
-                if (DUNE_CALL.equalsIgnoreCase(chat)) {
-                    sendServerChat(DUNE_RESPONSE);
-                } else if (STAR_WARS_CALL.equalsIgnoreCase(chat)) {
-                    sendServerChat(STAR_WARS_RESPONSE);
-                } else if (INVADER_ZIM_CALL.equalsIgnoreCase(chat)) {
-                    sendServerChat(INVADER_ZIM_RESPONSE);
-                } else if (WARGAMES_CALL.equalsIgnoreCase(chat)) {
-                    wargamesResponse();
-                }
-
-                break;
-            case LOAD_GAME:
-                try {
-                    sendServerChat(getPlayer(connId).getName() + " loaded a new game.");
-                    setGame((Game) packet.getObject(0));
-                    for (AbstractConnection conn : connections) {
-                        sendCurrentInfo(conn.getId());
+                    // Easter eggs. Happy April Fool's Day!!
+                    if (DUNE_CALL.equalsIgnoreCase(chat)) {
+                        sendServerChat(DUNE_RESPONSE);
+                    } else if (STAR_WARS_CALL.equalsIgnoreCase(chat)) {
+                        sendServerChat(STAR_WARS_RESPONSE);
+                    } else if (INVADER_ZIM_CALL.equalsIgnoreCase(chat)) {
+                        sendServerChat(INVADER_ZIM_RESPONSE);
+                    } else if (WARGAMES_CALL.equalsIgnoreCase(chat)) {
+                        wargamesResponse();
                     }
-                } catch (Exception e) {
-                    LOGGER.error(e, "Error loading save game sent from client");
-                }
-                break;
-            default:
-                gameManager.handlePacket(connId, packet);
+
+                    break;
+                case LOAD_GAME:
+                    try {
+                        sendServerChat(getPlayer(connId).getName() + " loaded a new game.");
+                        setGame((Game) packet.getObject(0));
+                        for (AbstractConnection conn : connections) {
+                            sendCurrentInfo(conn.getId());
+                        }
+                    } catch (Exception e) {
+                        LOGGER.error(e, "Error loading save game sent from client");
+                    }
+                    break;
+                default:
+                    gameManager.handlePacket(connId, packet);
+            }
+        } catch (InvalidPacketDataException e) {
+            LOGGER.error("Invalid packet data:", e);
         }
     }
 

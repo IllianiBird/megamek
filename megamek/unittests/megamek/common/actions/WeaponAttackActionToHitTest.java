@@ -46,16 +46,32 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Vector;
 
-import megamek.common.*;
+import megamek.common.CalledShot;
+import megamek.common.Hex;
+import megamek.common.LosEffects;
+import megamek.common.Player;
+import megamek.common.ToHitData;
+import megamek.common.board.Board;
+import megamek.common.board.Coords;
+import megamek.common.compute.Compute;
 import megamek.common.enums.GamePhase;
 import megamek.common.equipment.AmmoMounted;
 import megamek.common.equipment.BombMounted;
+import megamek.common.equipment.Mounted;
 import megamek.common.equipment.WeaponMounted;
+import megamek.common.equipment.WeaponType;
+import megamek.common.game.Game;
 import megamek.common.options.GameOptions;
 import megamek.common.options.OptionsConstants;
 import megamek.common.options.PilotOptions;
-import megamek.common.planetaryconditions.Light;
-import megamek.common.planetaryconditions.PlanetaryConditions;
+import megamek.common.planetaryConditions.Light;
+import megamek.common.planetaryConditions.PlanetaryConditions;
+import megamek.common.units.Aero;
+import megamek.common.units.Crew;
+import megamek.common.units.CrewType;
+import megamek.common.units.Entity;
+import megamek.common.units.Tank;
+import megamek.common.units.Targetable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -142,9 +158,9 @@ public class WeaponAttackActionToHitTest {
         when(mockWeaponType.getName()).thenReturn("Mock Weapon Type");
         when(mockWeaponType.getInternalName()).thenReturn("Mock Internal Weapon Type");
         when(mockWeaponType.getDamage()).thenReturn(5);
-        mockWeaponType.shortRange = 3;
-        mockWeaponType.mediumRange = 10;
-        mockWeaponType.longRange = 20;
+        mockWeaponType.setShortRange(3);
+        mockWeaponType.setMediumRange(10);
+        mockWeaponType.setLongRange(20);
         when(mockWeaponType.getMaxRange()).thenReturn(20);
         when(mockWeaponType.getMaxRange(any(), any())).thenReturn(20);
         when(mockWeaponType.getRanges(any(), any())).thenReturn(new int[] { 0, 3, 10, 20, 20 });
@@ -327,7 +343,7 @@ public class WeaponAttackActionToHitTest {
             toHit = WeaponAttackAction.toHit(mockGame, 0, mockTarget, 0, false);
             assertEquals(4, toHit.getValue());
 
-            // And now with double blind:
+            // And now with double-blind:
             when(mockOptions.booleanOption(OptionsConstants.ADVANCED_DOUBLE_BLIND)).thenReturn(true);
             toHit = WeaponAttackAction.toHit(mockGame, 0, mockTarget, 0, false);
             assertEquals(ToHitData.IMPOSSIBLE, toHit.getValue());

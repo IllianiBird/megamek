@@ -36,7 +36,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import megamek.common.compute.Compute;
+import megamek.common.game.Game;
 import megamek.common.options.GameOptions;
+import megamek.common.rolls.TargetRoll;
 import org.junit.jupiter.api.Test;
 
 class TargetRollTest {
@@ -151,7 +154,7 @@ class TargetRollTest {
         roll.addModifier(TargetRoll.AUTOMATIC_FAIL, "mod");
         roll.addModifier(TargetRoll.CHECK_FALSE, "mod");
         assertFalse(roll.needsRoll());
-        assertEquals(roll.getValue(), TargetRoll.CHECK_FALSE);
+        assertEquals(TargetRoll.CHECK_FALSE, roll.getValue());
 
         roll = basicTargetRoll();
         roll.addModifier(TargetRoll.CHECK_FALSE, "mod");
@@ -159,7 +162,7 @@ class TargetRollTest {
         roll.addModifier(TargetRoll.AUTOMATIC_SUCCESS, "mod");
         roll.addModifier(TargetRoll.AUTOMATIC_FAIL, "mod");
         assertFalse(roll.needsRoll());
-        assertEquals(roll.getValue(), TargetRoll.CHECK_FALSE);
+        assertEquals(TargetRoll.CHECK_FALSE, roll.getValue());
     }
 
     @Test

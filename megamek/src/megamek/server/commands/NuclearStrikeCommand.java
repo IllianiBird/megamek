@@ -37,12 +37,12 @@ import java.util.List;
 import java.util.Optional;
 
 import megamek.client.ui.Messages;
-import megamek.common.AmmoType;
-import megamek.common.Entity;
 import megamek.common.Player;
 import megamek.common.actions.NukeDetonatedAction;
-import megamek.common.event.GamePlayerStrategicActionEvent;
+import megamek.common.equipment.AmmoType;
+import megamek.common.event.player.GamePlayerStrategicActionEvent;
 import megamek.common.options.OptionsConstants;
+import megamek.common.units.Entity;
 import megamek.server.Server;
 import megamek.server.commands.arguments.Argument;
 import megamek.server.commands.arguments.Arguments;
@@ -50,7 +50,7 @@ import megamek.server.commands.arguments.CoordXArgument;
 import megamek.server.commands.arguments.CoordYArgument;
 import megamek.server.commands.arguments.EnumArgument;
 import megamek.server.commands.arguments.OptionalIntegerArgument;
-import megamek.server.totalwarfare.TWGameManager;
+import megamek.server.totalWarfare.TWGameManager;
 
 /**
  * @author Luana Coppio

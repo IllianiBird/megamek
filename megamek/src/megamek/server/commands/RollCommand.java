@@ -1,6 +1,6 @@
 /*
-  Copyright (C) 2000-2002 Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2000-2002 Ben Mazur (bmazur@sev.org)
+ * Copyright (C) 2002-2025 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -34,7 +34,7 @@
 
 package megamek.server.commands;
 
-import megamek.common.Compute;
+import megamek.common.compute.Compute;
 import megamek.server.Server;
 
 /**
@@ -69,7 +69,7 @@ public class RollCommand extends ServerCommand {
     }
 
     private void roll(int connId, int dice, int sides) {
-        StringBuffer diceBuffer = new StringBuffer();
+        StringBuilder diceBuffer = new StringBuilder();
         int total = 0;
         for (int i = 0; i < dice; i++) {
             int roll = Compute.randomInt(sides) + 1;
