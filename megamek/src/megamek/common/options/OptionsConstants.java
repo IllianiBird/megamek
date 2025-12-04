@@ -181,7 +181,7 @@ public class OptionsConstants {
     public static final String PILOT_TM_NIGHTWALKER = "tm_nightwalker";
     public static final String PILOT_TM_SWAMP_BEAST = "tm_swamp_beast";
     public static final String PILOT_ZWEIHANDER = "zweihander";
-
+    public static final String PILOT_ATOW_G_TOLERANCE = "atow_g_tolerance";
 
     // GUNNERY SKILLS
     public static final String GUNNERY_BLOOD_STALKER = "blood_stalker";
@@ -412,6 +412,7 @@ public class OptionsConstants {
     public static final String ADVANCED_COMBAT_TAC_OPS_JUMP_JET_ATTACK = "tacops_jump_jet_attack";
     public static final String ADVANCED_COMBAT_TAC_OPS_TRIP_ATTACK = "tacops_trip_attack";
     public static final String ADVANCED_COMBAT_TAC_OPS_ENERGY_WEAPONS = "tacops_energy_weapons";
+    public static final String ADVANCED_COMBAT_GOTHIC_DAZZLE_MODE = "gothic_dazzle_mode";
     public static final String ADVANCED_COMBAT_TAC_OPS_GAUSS_WEAPONS = "tacops_gauss_weapons";
     public static final String ADVANCED_COMBAT_TAC_OPS_RETRACTABLE_BLADES = "tacops_retractable_blades";
     public static final String ADVANCED_COMBAT_TAC_OPS_AMMUNITION = "tacops_ammunition";
@@ -424,9 +425,6 @@ public class OptionsConstants {
     public static final String ADVANCED_COMBAT_TAC_OPS_COOLANT_FAILURE = "tacops_coolant_failure";
     public static final String ADVANCED_COMBAT_TAC_OPS_BA_VS_BA = "tacops_ba_vs_ba";
     public static final String ADVANCED_COMBAT_NO_TAC = "no_tac";
-    public static final String ADVANCED_COMBAT_VEHICLES_THRESHOLD = "vehicles_threshold";
-    public static final String ADVANCED_COMBAT_VEHICLES_THRESHOLD_VARIABLE = "vehicles_threshold_variable";
-    public static final String ADVANCED_COMBAT_VEHICLES_THRESHOLD_DIVISOR = "vehicles_threshold_divisor";
     public static final String ADVANCED_COMBAT_VTOL_STRAFING = "vtol_strafing";
     public static final String ADVANCED_COMBAT_VEHICLES_SAFE_FROM_INFERNOS = "vehicles_safe_from_infernos";
     public static final String ADVANCED_COMBAT_PROTOMEKS_SAFE_FROM_INFERNOS = "protos_safe_from_infernos";
@@ -445,6 +443,7 @@ public class OptionsConstants {
     public static final String ADVANCED_COMBAT_FOREST_FIRES_NO_SMOKE = "forest_fires_no_smoke";
     public static final String ADVANCED_COMBAT_HOT_LOAD_IN_GAME = "hotload_in_game";
     public static final String ADVANCED_COMBAT_MULTI_USE_AMS = "multiuse_ams";
+    public static final String ADVANCED_COMBAT_PICKING_UP_AND_THROWING_UNITS = "picking_up_and_throwing_units";
     public static final String ADVANCED_GROUND_MOVEMENT_TAC_OPS_SPRINT = "tacops_sprint";
     public static final String ADVANCED_GROUND_MOVEMENT_TAC_OPS_STANDING_STILL = "tacops_standing_still";
     public static final String ADVANCED_GROUND_MOVEMENT_TAC_OPS_EVADE = "tacops_evade";
@@ -470,7 +469,7 @@ public class OptionsConstants {
     public static final String ADVANCED_GROUND_MOVEMENT_TAC_OPS_ZIPLINES = "tacops_ziplines";
     public static final String ADVANCED_GROUND_MOVEMENT_MEK_LANCE_MOVEMENT = "mek_lance_movement";
     public static final String ADVANCED_GROUND_MOVEMENT_MEK_LANCE_MOVEMENT_NUMBER = "mek_lance_movement_number";
-    public static final String ADVANCED_GROUND_MOVEMENT_NO_IMMOBILE_VEHICLES = "no_immobile_vehicles";
+    public static final String ADVANCED_GROUND_MOVEMENT_UNOFF_NO_IMMOBILE_VEHICLES = "no_immobile_vehicles";
     public static final String ADVANCED_GROUND_MOVEMENT_VEHICLES_CAN_EJECT = "vehicles_can_eject";
     public static final String ADVANCED_GROUND_MOVEMENT_EJECTED_PILOTS_FLEE = "ejected_pilots_flee";
     public static final String ADVANCED_GROUND_MOVEMENT_AUTO_ABANDON_UNIT = "auto_abandon_unit";
@@ -537,6 +536,8 @@ public class OptionsConstants {
     public static final String RPG_BEGIN_SHUTDOWN = "begin_shutdown";
 
     public static final String PLAYTEST_1 = "playtest_1";
+    public static final String PLAYTEST_2 = "playtest_2";
+    public static final String PLAYTEST_3 = "playtest_3";
 
     private OptionsConstants() {
     }

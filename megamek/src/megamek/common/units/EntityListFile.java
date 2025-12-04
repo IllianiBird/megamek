@@ -906,7 +906,7 @@ public class EntityListFile {
                     output.write(entityC3Master.getC3UUIDAsString());
                 }
             }
-            if (entity.hasC3() || entity.hasC3i() || entity.hasNavalC3()) {
+            if (entity.hasC3() || entity.hasC3i() || entity.hasNavalC3() || entity.hasNovaCEWS()) {
                 if (entity.getC3UUIDAsString() != null) {
                     output.write("\" " + MULParser.ATTR_C3UUID + "=\"");
                     output.write(entity.getC3UUIDAsString());
@@ -1233,10 +1233,15 @@ public class EntityListFile {
             }
 
             // Write the NC3 Data if needed
-            if (entity.hasNavalC3()) {
+            if (entity.hasNavalC3() || entity.hasNovaCEWS()) {
+                logger.debug("[EntityListFile] Saving NC3 for entity {} ({}), hasNavalC3={}, hasNovaCEWS={}",
+                    entity.getId(), entity.getShortName(), entity.hasNavalC3(), entity.hasNovaCEWS());
                 output.write(indentStr(indentLvl + 1) + '<' + MULParser.ELE_NC3 + ">\n");
+                int linkCount = 0;
                 for (Entity NC3Entity : list) {
                     if ((NC3Entity.getC3UUIDAsString() != null) && NC3Entity.onSameC3NetworkAs(entity, true)) {
+                        logger.debug("[EntityListFile]   Writing NC3LINK for entity {} UUID: {}",
+                            NC3Entity.getId(), NC3Entity.getC3UUIDAsString());
                         output.write(indentStr(indentLvl + 1) +
                               '<' +
                               MULParser.ELE_NC3LINK +
@@ -1245,8 +1250,10 @@ public class EntityListFile {
                               "=\"");
                         output.write(NC3Entity.getC3UUIDAsString());
                         output.write("\"/>\n");
+                        linkCount++;
                     }
                 }
+                logger.debug("[EntityListFile] Saved {} NC3 links for entity {}", linkCount, entity.getId());
                 output.write(indentStr(indentLvl + 1) + "</" + MULParser.ELE_NC3 + ">\n");
             }
 
@@ -1464,7 +1471,7 @@ public class EntityListFile {
         output.write("\" " + MULParser.ATTR_CLAN_PILOT + "=\"" + crew.isClanPilot(pos));
 
         if ((null != entity.getGame()) &&
-              entity.getGame().getOptions().booleanOption(OptionsConstants.RPG_RPG_GUNNERY)) {
+              entity.gameOptions().booleanOption(OptionsConstants.RPG_RPG_GUNNERY)) {
             output.write("\" " + MULParser.ATTR_GUNNERY_L + "=\"");
             output.write(String.valueOf(crew.getGunneryL(pos)));
             output.write("\" " + MULParser.ATTR_GUNNERY_M + "=\"");
@@ -1481,10 +1488,10 @@ public class EntityListFile {
             writeLAMAeroAttributes(output,
                   (LAMPilot) crew,
                   (null != entity.getGame()) &&
-                        entity.getGame().getOptions().booleanOption(OptionsConstants.RPG_RPG_GUNNERY));
+                        entity.gameOptions().booleanOption(OptionsConstants.RPG_RPG_GUNNERY));
         }
         if ((null != entity.getGame()) &&
-              entity.getGame().getOptions().booleanOption(OptionsConstants.RPG_ARTILLERY_SKILL)) {
+              entity.gameOptions().booleanOption(OptionsConstants.RPG_ARTILLERY_SKILL)) {
             output.write("\" " + MULParser.ATTR_ARTILLERY + "=\"");
             output.write(String.valueOf(crew.getArtillery(pos)));
         }
@@ -1577,7 +1584,7 @@ public class EntityListFile {
                 output.write("\" " + MULParser.ATTR_AUTO_EJECT + "=\"false");
             }
             if ((null != entity.getGame()) &&
-                  (entity.getGame().getOptions().booleanOption(OptionsConstants.RPG_CONDITIONAL_EJECTION))) {
+                  (entity.gameOptions().booleanOption(OptionsConstants.RPG_CONDITIONAL_EJECTION))) {
                 if (((Mek) entity).isCondEjectAmmo()) {
                     output.write("\" " + MULParser.ATTR_COND_EJECT_AMMO + "=\"true");
                 } else {

@@ -34,6 +34,8 @@
 
 package megamek.common.weapons.handlers;
 
+import static java.lang.Math.floor;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -112,7 +114,14 @@ public class WeaponHandler implements AttackHandler, Serializable {
     protected AmmoType ammoType;
     protected String typeName;
     protected WeaponMounted weapon;
+    /**
+     * Attacking Entity is the {@link Entity}  where the attack is coming from
+     */
     protected Entity attackingEntity;
+    /**
+     * Weapon Entity is the {@link Entity} that has the {@link WeaponMounted} {@link WeaponHandler#weapon}
+     */
+    protected Entity weaponEntity;
     protected Targetable target;
     protected int subjectId;
     protected int nRange;
@@ -211,20 +220,20 @@ public class WeaponHandler implements AttackHandler, Serializable {
                     int loc = prevWeapon.getLocation();
 
                     // create an array of booleans of locations
-                    boolean[] usedFrontArc = new boolean[attackingEntity.locations()];
-                    boolean[] usedRearArc = new boolean[attackingEntity.locations()];
-                    for (int i = 0; i < attackingEntity.locations(); i++) {
+                    boolean[] usedFrontArc = new boolean[weaponEntity.locations()];
+                    boolean[] usedRearArc = new boolean[weaponEntity.locations()];
+                    for (int i = 0; i < weaponEntity.locations(); i++) {
                         usedFrontArc[i] = false;
                         usedRearArc[i] = false;
                     }
                     if (!rearMount) {
                         if (!usedFrontArc[loc]) {
-                            totalHeat += attackingEntity.getHeatInArc(loc, rearMount);
+                            totalHeat += weaponEntity.getHeatInArc(loc, rearMount);
                             usedFrontArc[loc] = true;
                         }
                     } else {
                         if (!usedRearArc[loc]) {
-                            totalHeat += attackingEntity.getHeatInArc(loc, rearMount);
+                            totalHeat += weaponEntity.getHeatInArc(loc, rearMount);
                             usedRearArc[loc] = true;
                         }
                     }
@@ -519,7 +528,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
      *       hitting a building, or an AMS only shooting down some missiles.
      */
     protected boolean handleSpecialMiss(Entity entityTarget, boolean bldgDamagedOnMiss,
-          Building bldg, Vector<Report> vPhaseReport) {
+          IBuilding bldg, Vector<Report> vPhaseReport) {
         // Shots that miss an entity can set fires.
         // Buildings can't be accidentally ignited,
         // and some weapons can't ignite fires.
@@ -858,7 +867,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
             attackingEntity.setLastTargetDisplayName(entityTarget.getDisplayName());
         }
         // Which building takes the damage?
-        Building bldg = game.getBuildingAt(target.getBoardLocation()).orElse(null);
+        IBuilding bldg = game.getBuildingAt(target.getBoardLocation()).orElse(null);
         String number = numWeapons > 1 ? " (" + numWeapons + ")" : "";
         for (int i = numAttacks; i > 0; i--) {
             // Report weapon attack and its to-hit value.
@@ -1280,7 +1289,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
                   ((Infantry) target).isMechanized(),
                   toHit.getThruBldg() != null, attackingEntity.getId(), calcDmgPerHitReport);
         } else if (bDirect) {
-            toReturn = Math.min(toReturn + (toHit.getMoS() / 3.0), toReturn * 2);
+            toReturn = Math.min(toReturn + (int) floor(toHit.getMoS() / 3.0), toReturn * 2);
         }
 
         toReturn = applyGlancingBlowModifier(toReturn, target.isConventionalInfantry());
@@ -1374,7 +1383,8 @@ public class WeaponHandler implements AttackHandler, Serializable {
      *
      * @param entityTarget The target Entity
      */
-    protected void handlePartialCoverHit(Entity entityTarget, Vector<Report> vPhaseReport, HitData pcHit, Building bldg,
+    protected void handlePartialCoverHit(Entity entityTarget, Vector<Report> vPhaseReport, HitData pcHit,
+          IBuilding bldg,
           int hits, int nCluster, int bldgAbsorbs) {
 
         // Report the hit and table description, if this isn't part of a salvo
@@ -1405,7 +1415,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
         vPhaseReport.addElement(r);
 
         int damageableCoverType;
-        Building coverBuilding;
+        IBuilding coverBuilding;
         Entity coverDropShip;
         Coords coverLoc;
 
@@ -1502,7 +1512,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
      * Handle damage against an entity, called once per hit by default.
      */
     protected void handleEntityDamage(Entity entityTarget,
-          Vector<Report> vPhaseReport, Building bldg, int hits, int nCluster,
+          Vector<Report> vPhaseReport, IBuilding bldg, int hits, int nCluster,
           int bldgAbsorbs) {
         missed = false;
 
@@ -1657,7 +1667,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
      * Worker function to (maybe) have a building absorb damage meant for the entity
      */
     protected int absorbBuildingDamage(int nDamage, Entity entityTarget, int bldgAbsorbs,
-          Vector<Report> vPhaseReport, Building bldg,
+          Vector<Report> vPhaseReport, IBuilding bldg,
           boolean targetStickingOutOfBuilding) {
         // if the building will absorb some damage and the target is actually
         // entirely inside the building:
@@ -1693,7 +1703,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
         return nDamage;
     }
 
-    protected void handleIgnitionDamage(Vector<Report> vPhaseReport, Building bldg, int hits) {
+    protected void handleIgnitionDamage(Vector<Report> vPhaseReport, IBuilding bldg, int hits) {
         if (!bSalvo) {
             // hits!
             Report r = new Report(2270);
@@ -1709,11 +1719,11 @@ public class WeaponHandler implements AttackHandler, Serializable {
         }
     }
 
-    protected void handleClearDamage(Vector<Report> vPhaseReport, Building bldg, int nDamage) {
+    protected void handleClearDamage(Vector<Report> vPhaseReport, IBuilding bldg, int nDamage) {
         handleClearDamage(vPhaseReport, bldg, nDamage, true);
     }
 
-    protected void handleClearDamage(Vector<Report> vPhaseReport, Building bldg, int nDamage,
+    protected void handleClearDamage(Vector<Report> vPhaseReport, IBuilding bldg, int nDamage,
           boolean hitReport) {
         if (!bSalvo && hitReport) {
             // hits!
@@ -1747,7 +1757,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
         vPhaseReport.addAll(clearReports);
     }
 
-    protected void handleBuildingDamage(Vector<Report> vPhaseReport, Building bldg, int nDamage,
+    protected void handleBuildingDamage(Vector<Report> vPhaseReport, IBuilding bldg, int nDamage,
           Coords coords) {
         if (!bSalvo) {
             // hits!
@@ -1810,13 +1820,18 @@ public class WeaponHandler implements AttackHandler, Serializable {
         toHit = toHitData;
         this.weaponAttackAction = weaponAttackAction;
         this.game = game;
-        attackingEntity = this.game.getEntity(this.weaponAttackAction.getEntityId());
 
+        weaponEntity = this.game.getEntity(this.weaponAttackAction.getEntityId());
+        if (weaponEntity == null) {
+            throw new EntityLoadingException("Weapon Entity is NULL");
+        }
+
+        attackingEntity = weaponEntity.getAttackingEntity();
         if (attackingEntity == null) {
             throw new EntityLoadingException("Attacking Entity is NULL");
         }
 
-        weapon = (WeaponMounted) attackingEntity.getEquipment(this.weaponAttackAction.getWeaponId());
+        weapon = (WeaponMounted) weaponEntity.getEquipment(this.weaponAttackAction.getWeaponId());
         weaponType = weapon.getType();
         ammoType = (weapon.getLinked() != null && weapon.getLinked().getType() instanceof AmmoType)
               ? (AmmoType) weapon.getLinked().getType()
@@ -2013,7 +2028,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
             return nDamage;
         }
 
-        weapon = attackingEntity.getWeapon(weaponAttackAction.getWeaponId());
+        weapon = weaponAttackAction.getEntity(game).getWeapon(weaponAttackAction.getWeaponId());
         weaponType = weapon.getType();
 
         if (!weaponType.hasFlag(WeaponType.F_LASER)) {
@@ -2264,7 +2279,6 @@ public class WeaponHandler implements AttackHandler, Serializable {
     /**
      * Used by certain artillery handlers to draw drift markers with "hit" graphics if anything is caught in the blast,
      * or "drift" marker if nothing is damaged. No-op for direct hits.
-     *
      */
     protected void handleArtilleryDriftMarker(Coords targetPos, Coords finalPos, ArtilleryAttackAction aaa,
           Vector<Integer> hitIds) {

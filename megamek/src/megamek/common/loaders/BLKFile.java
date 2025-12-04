@@ -34,6 +34,8 @@
 
 package megamek.common.loaders;
 
+import static megamek.common.bays.Bay.UNSET_BAY;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -307,6 +309,11 @@ public class BLKFile {
                             mount.setShotsLeft(shots);
                             mount.setSize(shots);
                         }
+                        if (etype instanceof MiscType && mount.getType().hasFlag(MiscType.F_LIFT_HOIST)) { //
+                            // Cargo
+                            // Container too?
+                            t.addTransporter(new LiftHoist(mount, t.getWeight() / 2), isOmniMounted);
+                        }
                         if (etype.isVariableSize()) {
                             if (size == 0) {
                                 size = MtfFile.extractLegacySize(equipName);
@@ -486,10 +493,6 @@ public class BLKFile {
 
         if (dataFile.exists("height")) {
             e.getFluff().setHeight(dataFile.getDataAsString("height")[0]);
-        }
-
-        if (dataFile.exists("source")) {
-            e.setSource(dataFile.getDataAsString("source")[0]);
         }
     }
 
@@ -1471,7 +1474,7 @@ public class BLKFile {
             // if a positive bay number was not specified, assign one
             // if a bay number was specified but is a duplicate, assign a different one
             int newBay = 1;
-            if (bayNumber == -1 || usedBayNumbers.contains(bayNumber)) {
+            if (bayNumber == UNSET_BAY || usedBayNumbers.contains(bayNumber)) {
                 while (usedBayNumbers.contains(newBay)) {
                     newBay++;
                 }
@@ -1535,7 +1538,7 @@ public class BLKFile {
             // Copy initial two fields; later fields get defaults or are set later
             java.lang.System.arraycopy(numbersArray, 0, temp, 0, 2);
             // Fill in other fields with default/unset values
-            temp[2] = String.valueOf(-1);
+            temp[2] = String.valueOf(UNSET_BAY);
             temp[3] = "";
             temp[4] = String.valueOf(Entity.LOC_NONE);
             temp[5] = String.valueOf(0);
@@ -1579,7 +1582,7 @@ public class BLKFile {
                     temp[3] = potentialBayTypeIndicator;
                     if (temp[2].equals(temp[3])) {
                         // We found the infantry type in the bay number field; unset bay number
-                        temp[2] = String.valueOf(-1);
+                        temp[2] = String.valueOf(UNSET_BAY);
                     }
                 } else if (potentialBayTypeIndicator.startsWith(Bay.FACING_PREFIX)) {
                     // Strip old facing prefix, set field to remaining value.
@@ -1626,6 +1629,13 @@ public class BLKFile {
             entity.setArmorTechLevel(dataFile.getDataAsInt("armor_tech")[0]);
         } else {
             entity.setArmorTechLevel(entity.getStaticTechLevel().getCompoundTechLevel(entity.isClan()));
+        }
+    }
+
+
+    protected void resetCrew(Entity entity) {
+        if (entity.getCrew() != null && entity.getCrew().getCrewType() != entity.defaultCrewType()) {
+            entity.setCrew(new Crew(entity.defaultCrewType()));
         }
     }
 }

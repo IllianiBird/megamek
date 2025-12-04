@@ -34,6 +34,7 @@
 package megamek.common.game;
 
 import static java.util.stream.Collectors.toList;
+import static megamek.common.enums.GamePhase.INITIATIVE_REPORT;
 import static megamek.common.options.OptionsConstants.ATOW_COMBAT_PARALYSIS;
 import static megamek.common.options.OptionsConstants.ATOW_COMBAT_SENSE;
 
@@ -60,7 +61,14 @@ import megamek.common.board.BoardLocation;
 import megamek.common.board.Coords;
 import megamek.common.compute.Compute;
 import megamek.common.enums.GamePhase;
-import megamek.common.equipment.*;
+import megamek.common.equipment.AmmoMounted;
+import megamek.common.equipment.AmmoType;
+import megamek.common.equipment.Flare;
+import megamek.common.equipment.GunEmplacement;
+import megamek.common.equipment.ICarryable;
+import megamek.common.equipment.INarcPod;
+import megamek.common.equipment.Minefield;
+import megamek.common.equipment.MinefieldTarget;
 import megamek.common.equipment.enums.BombType.BombTypeEnum;
 import megamek.common.event.GameEndEvent;
 import megamek.common.event.GameEvent;
@@ -228,8 +236,8 @@ public final class Game extends AbstractGame implements Serializable, PlanetaryC
         setBoard(0, board);
     }
 
-    public boolean containsMinefield(Coords coords) {
-        return minefields.containsKey(coords);
+    public boolean containsMinefield(@Nullable Coords coords) {
+        return (coords != null) && minefields.containsKey(coords);
     }
 
     public Vector<Minefield> getMinefields(Coords coords) {
@@ -606,11 +614,12 @@ public final class Game extends AbstractGame implements Serializable, PlanetaryC
      * @return true if the player has a valid unit with the Tactical Genius pilot special ability.
      */
     public boolean hasTacticalGenius(Player player) {
+        // Note: rules do not state that Tactical Genius cannot apply to deployment initiative roll (CamOps pg 80)
         for (Entity entity : inGameTWEntities()) {
             if (entity.hasAbility(OptionsConstants.MISC_TACTICAL_GENIUS) &&
                   entity.getOwner().equals(player) &&
                   !entity.isDestroyed() &&
-                  entity.isDeployed() &&
+                  (entity.isDeployed() || (getPhase() == INITIATIVE_REPORT)) &&
                   !entity.isCarcass() &&
                   !entity.getCrew().isUnconscious()) {
                 return true;
@@ -807,9 +816,11 @@ public final class Game extends AbstractGame implements Serializable, PlanetaryC
         GameTurn turn = getTurn();
 
         if (turn != null) {
-            Player player = getPlayer(getTurn().playerId());
+            int playerID = getTurn().playerId();
+            Player player = getPlayer(playerID);
 
-            if (player != null) {
+            // -1 indicates a turn constructed with Player ID == PLAYER_NONE, such as stranded units.
+            if ((playerID == Player.PLAYER_NONE) || (player != null)) {
                 processGameEvent(new GameTurnChangeEvent(this, player, prevPlayerId));
             }
         }
@@ -1273,20 +1284,7 @@ public final class Game extends AbstractGame implements Serializable, PlanetaryC
      */
     public synchronized void addEntity(Entity entity, boolean genEvent) {
         entity.setGame(this);
-        if (entity instanceof Mek entityMek) {
-            entityMek.setBAGrabBars();
-            entityMek.setProtoMekClampMounts();
-        } else if (entity instanceof Tank entityTank) {
-            entityTank.setBAGrabBars();
-            entityTank.setTrailerHitches();
-        }
-
-        // Add magnetic clamp mounts
-        if ((entity instanceof Mek) && !entity.isOmni() && !entity.hasBattleArmorHandles()) {
-            entity.addTransporter(new ClampMountMek());
-        } else if ((entity instanceof Tank entityTank) && !entityTank.isOmni() && !entityTank.hasBattleArmorHandles()) {
-            entityTank.addTransporter(new ClampMountTank());
-        }
+        entity.addIntrinsicTransporters();
 
         entity.setGameOptions();
         if (entity.getC3UUIDAsString() == null) {
@@ -1638,7 +1636,7 @@ public final class Game extends AbstractGame implements Serializable, PlanetaryC
             return false;
         }
         Board board = getBoard(boardId);
-        Building building = board.getBuildingAt(c);
+        IBuilding building = board.getBuildingAt(c);
         if (building == null) {
             return false;
         }
@@ -2558,6 +2556,86 @@ public final class Game extends AbstractGame implements Serializable, PlanetaryC
         }
     }
 
+    // PLAYTEST2 single PSR roll for actuators/hips
+    public void reducePSRforActuatorCrits(Entity entity) {
+        PilotingRollData roll;
+        Vector<Integer> rollsToRemove = new Vector<>();
+        Vector<Integer> rollTarget = new Vector<>();
+        Vector<Integer> rollLocation = new Vector<>();
+        Vector<Integer> saveRolls = new Vector<>();
+
+        // first, find all the rolls belonging to the target entity
+        // Locations are: 1 = left leg, 2 = right leg, 3 = front left leg, 4 = front right leg, 5 = center leg
+        for (int i = 0; i < pilotRolls.size(); i++) {
+            roll = pilotRolls.elementAt(i);
+            if (roll.getEntityId() == entity.getId()) {
+                // This is the critical part.
+                if (roll.getDesc().equals("left leg actuator hit") || roll.getDesc().equals("left hip actuator hit")) {
+                    rollTarget.addElement(roll.getValue());
+                    rollLocation.addElement(1);
+                    rollsToRemove.addElement(i);
+                } else if (roll.getDesc().equals("right leg actuator hit") || roll.getDesc()
+                      .equals("right hip actuator hit")) {
+                    rollTarget.addElement(roll.getValue());
+                    rollLocation.addElement(2);
+                    rollsToRemove.addElement(i);
+                } else if (roll.getDesc().equals("front left leg actuator hit") || roll.getDesc().equals("front left "
+                      + "hip actuator hit")) {
+                    rollTarget.addElement(roll.getValue());
+                    rollLocation.addElement(3);
+                    rollsToRemove.addElement(i);
+                } else if (roll.getDesc().equals("front right leg actuator hit") || roll.getDesc().equals("front "
+                      + "right hip actuator hit")) {
+                    rollTarget.addElement(roll.getValue());
+                    rollLocation.addElement(4);
+                    rollsToRemove.addElement(i);
+                } else if (roll.getDesc().equals("center leg actuator hit") || roll.getDesc().equals("center hip "
+                      + "actuator hit")) {
+                    rollTarget.addElement(roll.getValue());
+                    rollLocation.addElement(5);
+                    rollsToRemove.addElement(i);
+                }
+            }
+        }
+
+        if (rollsToRemove.size() > 1) {
+            int saveEntry = 0;
+            int highTarget = 0;
+            boolean entrySaved = false;
+            // check which roll target is highest
+            for (int location = 1; location < 6; location++) {
+                highTarget = 0;
+                saveEntry = 0;
+                entrySaved = false;
+                for (int i = 0; i < rollTarget.size(); i++) {
+                    if ((rollTarget.elementAt(i) > highTarget) && (rollLocation.elementAt(i) == location)) {
+                        saveEntry = i;
+                        entrySaved = true;
+                        highTarget = rollTarget.elementAt(i);
+                    }
+                }
+                if (entrySaved == true) {
+                    saveRolls.addElement(rollsToRemove.elementAt(saveEntry));
+                }
+            }
+            logger.debug("Playtest: Removing PSR rolls for " + entity.getDisplayName());
+            // Remove the saved element from our removal list
+            for (int i = saveRolls.size() - 1; i > -1; i--) {
+                roll = pilotRolls.elementAt(saveRolls.elementAt(i));
+                logger.debug("Saving PSR roll: " + roll.getDesc());
+                rollsToRemove.removeElementAt(saveRolls.elementAt(i));
+            }
+
+            // now, clear out remaining rolls from the PSRs
+            for (int i = rollsToRemove.size() - 1; i > -1; i--) {
+                roll = pilotRolls.elementAt(rollsToRemove.elementAt(i));
+                logger.debug("Removing PSR roll: " + roll.getDesc());
+                pilotRolls.removeElementAt(rollsToRemove.elementAt(i));
+            }
+            logger.debug("Done removing PSR rolls");
+        }
+    }
+
     /**
      * Resets the extreme Gravity PSR list.
      */
@@ -3371,7 +3449,6 @@ public final class Game extends AbstractGame implements Serializable, PlanetaryC
 
     /**
      * Updates the map that maps a position to the list of Entity's in that position.
-     *
      */
     public synchronized void updateEntityPositionLookup(Entity e, HashSet<Coords> oldPositions) {
         HashSet<Coords> newPositions = e.getOccupiedCoords();
@@ -3605,7 +3682,7 @@ public final class Game extends AbstractGame implements Serializable, PlanetaryC
      *
      * @return The building at the location, if any
      */
-    public Optional<Building> getBuildingAt(@Nullable BoardLocation boardLocation) {
+    public Optional<IBuilding> getBuildingAt(@Nullable BoardLocation boardLocation) {
         return getBuildingAt(boardLocation.coords(), boardLocation.boardId());
     }
 
@@ -3617,7 +3694,7 @@ public final class Game extends AbstractGame implements Serializable, PlanetaryC
      *
      * @return The building at the location, if any
      */
-    public Optional<Building> getBuildingAt(@Nullable Coords coords, int boardId) {
+    public Optional<IBuilding> getBuildingAt(@Nullable Coords coords, int boardId) {
         if (hasBoardLocation(coords, boardId)) {
             return Optional.ofNullable(getBoard(boardId).getBuildingAt(coords));
         } else {

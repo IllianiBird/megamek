@@ -75,6 +75,7 @@ public class PilotOptions extends AbstractOptions {
         addOption(adv, OptionsConstants.PILOT_TM_NIGHTWALKER, false);
         addOption(adv, OptionsConstants.PILOT_TM_SWAMP_BEAST, false);
         addOption(adv, OptionsConstants.PILOT_ZWEIHANDER, false);
+        addOption(adv, OptionsConstants.PILOT_ATOW_G_TOLERANCE, false);
 
         // Gunnery Abilities
         addOption(adv, OptionsConstants.GUNNERY_BLOOD_STALKER, false);
@@ -198,15 +199,17 @@ public class PilotOptions extends AbstractOptions {
     }
 
     private static class PilotOptionsInfo extends AbstractOptionsInfo {
-        private static boolean initialized = false;
-        private static final AbstractOptionsInfo instance = new PilotOptionsInfo();
+        private static volatile PilotOptionsInfo instance;
+        private static final Object lock = new Object();
 
-        public static AbstractOptionsInfo getInstance() {
-            if (!initialized) {
-                initialized = true;
-                // Create a new dummy PilotOptions; ensures values initialized
-                // Otherwise, could have issues when loading saved games
-                new PilotOptions();
+        public static PilotOptionsInfo getInstance() {
+            if (instance == null) {
+                synchronized (lock) {
+                    if (instance == null) {
+                        instance = new PilotOptionsInfo();
+                        new PilotOptions();
+                    }
+                }
             }
             return instance;
         }

@@ -69,7 +69,6 @@ import megamek.common.preference.PreferenceManager;
 import megamek.common.units.Entity;
 import megamek.common.units.UnitNameTracker;
 import megamek.logging.MMLogger;
-import megamek.server.ConnectionHandler;
 
 /**
  * AbstractClient that handles basic client features.
@@ -84,6 +83,7 @@ public abstract class AbstractClient implements IClient {
     protected String name;
     protected boolean connected = false;
     protected boolean disconnectFlag = false;
+    protected boolean awaitingSave = false;
     protected final String host;
     protected final int port;
     private ConnectionHandler packetUpdate;
@@ -157,7 +157,6 @@ public abstract class AbstractClient implements IClient {
     /** Shuts down threads and sockets */
     @Override
     public synchronized void die() {
-        // If we're still connected, tell the server that we're going down.
         if (connected) {
             // Stop listening for in coming packets, this should be done before
             // sending the close connection command
@@ -227,7 +226,16 @@ public abstract class AbstractClient implements IClient {
      * Sends the info associated with the local player.
      */
     public void sendPlayerInfo() {
-        send(new Packet(PacketCommand.PLAYER_UPDATE, getGame().getPlayer(localPlayerNumber)));
+        sendPlayerInfo(getGame().getPlayer(localPlayerNumber));
+    }
+
+    /**
+     * Sends the info associated with a player, usually the local game's local player but sometimes the modified version
+     * of that player.
+     * @param player Player instance regarding which to send the update.
+     */
+    public void sendPlayerInfo(Player player) {
+        send(new Packet(PacketCommand.PLAYER_UPDATE, player));
     }
 
     @Override
@@ -571,6 +579,13 @@ public abstract class AbstractClient implements IClient {
         return bots;
     }
 
+    public void setAwaitingSave(boolean awaitingSave) {
+        this.awaitingSave = awaitingSave;
+    }
+
+    public boolean isAwaitingSave() {
+        return awaitingSave;
+    }
     /**
      * Custom connection Listener for AbstractClient
      *

@@ -51,6 +51,7 @@ import megamek.common.game.InGameObject;
 import megamek.common.hexArea.BorderHexArea;
 import megamek.common.hexArea.HexArea;
 import megamek.common.icons.Camouflage;
+import megamek.common.interfaces.IStartingPositions;
 import megamek.common.options.OptionsConstants;
 import megamek.common.turns.TurnOrdered;
 import megamek.common.units.Entity;
@@ -485,7 +486,7 @@ public final class Player extends TurnOrdered {
      * Set deployment zone to edge of board for reinforcements
      */
     public void adjustStartingPosForReinforcements() {
-        if (startingPos > 10) {
+        if ((startingPos > 10) && (startingPos < IStartingPositions.START_LOCATION_NAMES.length)) {
             startingPos -= 10; // deep deploy change to standard
         }
 
@@ -804,6 +805,8 @@ public final class Player extends TurnOrdered {
         copy.visibleMinefields = new Vector<>(visibleMinefields);
 
         copy.admitsDefeat = admitsDefeat;
+
+        copy.setInitiative(getInitiative());
 
         return copy;
     }

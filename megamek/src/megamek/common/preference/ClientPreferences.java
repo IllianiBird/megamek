@@ -90,9 +90,13 @@ public class ClientPreferences extends PreferenceStoreProxy {
     public static final String MAP_WIDTH = "MapWidth";
     public static final String MAP_HEIGHT = "MapHeight";
     public static final String REPORT_KEYWORDS = "ReportKeywords";
-    private static final String REPORT_KEYWORDS_DEFAULTS = "Needs\nRolls\nTakes\nHit\nFalls\nSkill Roll\nPilot Skill\nPhase\nDestroyed\nDamage";
+    private static final String REPORT_KEYWORDS_DEFAULTS = "Needs\nRolls\nTakes\nHit\nFalls\nSkill Roll\nPilot "
+          + "Skill\nPhase\nDestroyed\nDamage";
+    public static final String REPORT_FILTER_KEYWORDS = "ReportFilterKeywords";
+    private static final String REPORT_FILTER_KEYWORDS_DEFAULTS = "Fire Hit Damage\nHit Damage";
     public static final String IP_ADDRESSES_IN_CHAT = "IPAddressesInChat";
     public static final String START_SEARCHLIGHTS_ON = "StartSearchlightsOn";
+    public static final String SPRITES_ONLY = "SpritesOnly";
     public static final String ENABLE_EXPERIMENTAL_BOT_FEATURES = "EnableExperimentalBotFeatures";
     public static final String NAG_ASK_FOR_VICTORY_LIST = "AskForVictoryList";
     public static final String SHOW_AUTO_RESOLVE_PANEL = "ShowAutoResolvePanel";
@@ -139,14 +143,16 @@ public class ClientPreferences extends PreferenceStoreProxy {
         store.setDefault(DEBUG_OUTPUT_ON, false);
         store.setDefault(MEMORY_DUMP_ON, false);
         store.setDefault(REPORT_KEYWORDS, REPORT_KEYWORDS_DEFAULTS);
+        store.setDefault(REPORT_FILTER_KEYWORDS, REPORT_FILTER_KEYWORDS_DEFAULTS);
         store.setDefault(IP_ADDRESSES_IN_CHAT, false);
         store.setDefault(START_SEARCHLIGHTS_ON, true);
+        store.setDefault(SPRITES_ONLY, false);
         store.setDefault(ENABLE_EXPERIMENTAL_BOT_FEATURES, false);
         store.setDefault(USER_DIR, "");
         store.setDefault(MML_PATH, "");
         store.setDefault(NAG_ASK_FOR_VICTORY_LIST, true);
         store.setDefault(DATA_LOGGING, true);
-        store.setDefault(SHOW_AUTO_RESOLVE_PANEL, true);
+        store.setDefault(SHOW_AUTO_RESOLVE_PANEL, false);
         store.setDefault(STAMP_FILENAMES, false);
         store.setDefault(FAVORITE_PRINCESS_BEHAVIOR_SETTING, DEFAULT_BEHAVIOR_DESCRIPTION);
         store.setDefault(LAST_SCENARIO, "");
@@ -379,6 +385,14 @@ public class ClientPreferences extends PreferenceStoreProxy {
         store.setValue(REPORT_KEYWORDS, s);
     }
 
+    public String getReportFilterKeywords() {
+        return store.getString(REPORT_FILTER_KEYWORDS);
+    }
+
+    public void setReportFilterKeywords(String s) {
+        store.setValue(REPORT_FILTER_KEYWORDS, s);
+    }
+
     public boolean getShowIPAddressesInChat() {
         return store.getBoolean(IP_ADDRESSES_IN_CHAT);
     }
@@ -393,6 +407,14 @@ public class ClientPreferences extends PreferenceStoreProxy {
 
     public void setStartSearchlightsOn(boolean value) {
         store.setValue(START_SEARCHLIGHTS_ON, value);
+    }
+
+    public boolean getSpritesOnly() {
+        return store.getBoolean(SPRITES_ONLY);
+    }
+
+    public void setSpritesOnly(boolean value) {
+        store.setValue(SPRITES_ONLY, value);
     }
 
     public void setEnableExperimentalBotFeatures(boolean value) {

@@ -72,6 +72,7 @@ import megamek.common.Player;
 import megamek.common.Report;
 import megamek.common.SpecialHexDisplay;
 import megamek.common.TagInfo;
+import megamek.common.util.C3Util;
 import megamek.common.actions.ArtilleryAttackAction;
 import megamek.common.actions.AttackAction;
 import megamek.common.actions.ClubAttackAction;
@@ -112,12 +113,12 @@ import megamek.common.options.OptionsConstants;
 import megamek.common.planetaryConditions.PlanetaryConditions;
 import megamek.common.preference.PreferenceManager;
 import megamek.common.turns.UnloadStrandedTurn;
-import megamek.common.units.Building;
 import megamek.common.units.Crew;
 import megamek.common.units.DemolitionCharge;
 import megamek.common.units.Entity;
 import megamek.common.units.EntitySelector;
 import megamek.common.units.FighterSquadron;
+import megamek.common.units.IBuilding;
 import megamek.common.units.UnitLocation;
 import megamek.common.util.ImageUtil;
 import megamek.common.util.SerializationHelper;
@@ -409,7 +410,6 @@ public class Client extends AbstractClient {
      *
      * @param entities The collection of Entity objects to add. This should ideally be an {@link ArrayList<Entity>}, but
      *                 other kinds of {@link List} will be converted to an {@link ArrayList}.
-     *
      */
     public void sendAddEntity(List<Entity> entities) {
         // Trying to pass a non-ArrayList jams the receiving client and prevents it from ever receiving more packets.
@@ -528,6 +528,28 @@ public class Client extends AbstractClient {
         }
 
         game.setEntitiesVector(newEntities);
+
+        // CRITICAL FIX: Reconstruct C3 networks from UUIDs (matches server-side handling)
+        // This is necessary for lobby-configured networks (Naval C3, Nova CEWS, C3i)
+        for (Entity entity : newEntities) {
+            if (entity.hasC3() || entity.hasC3i() || entity.hasNavalC3() || entity.hasNovaCEWS()) {
+                C3Util.wireC3(game, entity);
+            }
+        }
+
+        // Diagnostic logging for Nova CEWS networks (enable DEBUG logging for C3 debugging)
+        if (LOGGER.isDebugEnabled()) {
+            for (Entity entity : newEntities) {
+                if (entity.hasNovaCEWS()) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < Entity.MAX_C3i_NODES; i++) {
+                        sb.append(entity.getNC3NextUUIDAsString(i)).append(", ");
+                    }
+                    LOGGER.debug("[CLIENT] receiveEntities: Entity {} ({}), c3NetIdString: {}, NC3UUIDs: [{}]",
+                        entity.getId(), entity.getShortName(), entity.getC3NetId(), sb.toString());
+                }
+            }
+        }
         game.setOutOfGameEntitiesVector(newOutOfGame);
         for (Entity entity : newOutOfGame) {
             cacheImgTag(entity);
@@ -645,7 +667,7 @@ public class Client extends AbstractClient {
     }
 
     protected void receiveUpdateGroundObjects(Packet packet) throws InvalidPacketDataException {
-        game.setGroundObjects(packet.getCoordsWithICarryableListMap(0));
+        game.setGroundObjects(packet.getCoordsWithGroundObjectListMap(0));
         game.processGameEvent(new GameBoardChangeEvent(this));
     }
 
@@ -692,7 +714,7 @@ public class Client extends AbstractClient {
     }
 
     protected void receiveBuildingUpdate(Packet packet) throws InvalidPacketDataException {
-        for (Building building : packet.getBuildingList(0)) {
+        for (IBuilding building : packet.getBuildingList(0)) {
             game.getBoard(building.getBoardId()).updateBuilding(building);
         }
     }
@@ -1107,6 +1129,8 @@ public class Client extends AbstractClient {
                             }
                         } catch (Exception ex) {
                             LOGGER.error(ex, "Unable to create savegames directory.");
+                        } finally {
+                            setAwaitingSave(false);
                         }
                     }
 
@@ -1120,6 +1144,7 @@ public class Client extends AbstractClient {
                     } catch (Exception ex) {
                         LOGGER.error(ex, "Unable to save file {}", sFinalFile);
                     }
+                    setAwaitingSave(false);
                     break;
                 case LOAD_SAVEGAME:
                     String loadFile = packet.getStringValue(0);

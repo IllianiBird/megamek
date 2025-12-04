@@ -1086,6 +1086,13 @@ public class TestMek extends TestEntity {
             illegal = true;
         }
 
+        if (mek.getCockpitType() == Mek.COCKPIT_INTERFACE) {
+            if (mek.getCockpit().stream().anyMatch(CriticalSlot::isArmored)) {
+                buff.append("Interface cockpits may not use component armoring.\n");
+                illegal = true;
+            }
+        }
+
         if (mek.isIndustrial()) {
             if ((mek.getCockpitType() == Mek.COCKPIT_INDUSTRIAL
                   || mek.getCockpitType() == Mek.COCKPIT_PRIMITIVE_INDUSTRIAL) && hasC3) {
@@ -1357,7 +1364,8 @@ public class TestMek extends TestEntity {
                 buff.append("Unit mounts both null-signature-system and void-signature-system\n");
                 illegal = true;
             }
-            if (hasC3) {
+            // Nova CEWS is exempt and can be mounted with a null-sig (but not a void-sig)
+            if (mek.hasC3() || mek.hasC3i()) {
                 buff.append("Unit mounts both null-signature-system and a c3 system\n");
                 illegal = true;
             }

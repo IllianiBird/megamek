@@ -203,8 +203,7 @@ public class CommonSettingsDialog extends AbstractButtonDialog
           "CommonSettingsDialog.nagForLaunchDoors"));
     private final JCheckBox nagForSprint = new JCheckBox(Messages.getString("CommonSettingsDialog.nagForSprint"));
     private final JCheckBox nagForOddSizedBoard =
-          new JCheckBox(Messages.getString(
-                "CommonSettingsDialog.nagForOddSizedBoard"));
+          new JCheckBox(Messages.getString("CommonSettingsDialog.nagForOddSizedBoard"));
     private final JCheckBox animateMove = new JCheckBox(Messages.getString("CommonSettingsDialog.animateMove"));
     private final JCheckBox showWrecks = new JCheckBox(Messages.getString("CommonSettingsDialog.showWrecks"));
     private final JCheckBox chkHighQualityGraphics = new JCheckBox(Messages.getString(
@@ -273,6 +272,8 @@ public class CommonSettingsDialog extends AbstractButtonDialog
           "CommonSettingsDialog.showIPAddressesInChat"));
     private final JCheckBox startSearchlightsOn = new JCheckBox(Messages.getString(
           "CommonSettingsDialog.startSearchlightsOn"));
+    private final JCheckBox spritesOnly = new JCheckBox(Messages.getString(
+          "CommonSettingsDialog.spritesOnly"));
     private final JCheckBox showDamageLevel = new JCheckBox(Messages.getString("CommonSettingsDialog.showDamageLevel"));
     private final JCheckBox showDamageDecal = new JCheckBox(Messages.getString("CommonSettingsDialog.showDamageDecal"));
     private final JCheckBox showMapSheets = new JCheckBox(Messages.getString("CommonSettingsDialog.showMapsheets"));
@@ -480,7 +481,16 @@ public class CommonSettingsDialog extends AbstractButtonDialog
     private JCheckBox displayFireDisplayDuringFirePhases;
 
     // Report
+    private final JCheckBox chkReportShowPlayers = new JCheckBox(Messages.getString(
+          "CommonSettingsDialog.showReportPlayerList"));
+    private final JCheckBox chkReportShowUnits = new JCheckBox(Messages.getString(
+          "CommonSettingsDialog.showReportUnitList"));
+    private final JCheckBox chkReportShowKeywords = new JCheckBox(Messages.getString(
+          "CommonSettingsDialog.showReportKeywordsList"));
     private JTextPane reportKeywordsTextPane;
+    private JTextPane reportFilterKeywordsTextPane;
+    private final JCheckBox chkReportShowFilter = new JCheckBox(Messages.getString(
+          "CommonSettingsDialog.showReportFilterList"));
     private ColourSelectorButton csbReportLinkColor;
     private ColourSelectorButton csbReportSuccessColor;
     private ColourSelectorButton csbReportMissColor;
@@ -1588,11 +1598,48 @@ public class CommonSettingsDialog extends AbstractButtonDialog
 
         addLineSpacer(comps);
 
+        row = new ArrayList<>();
+        row.add(chkReportShowPlayers);
+        chkReportShowPlayers.setToolTipText(Messages.getString(
+              "CommonSettingsDialog.showReportPlayerList.tooltip"));
+        chkReportShowPlayers.setSelected(GUIP.getMiniReportShowPlayers());
+        comps.add(row);
+
+        row = new ArrayList<>();
+        row.add(chkReportShowUnits);
+        chkReportShowUnits.setToolTipText(Messages.getString(
+              "CommonSettingsDialog.showReportUnitList.tooltip"));
+        chkReportShowUnits.setSelected(GUIP.getMiniReportShowUnits());
+        comps.add(row);
+
+        row = new ArrayList<>();
+        row.add(chkReportShowKeywords);
+        chkReportShowKeywords.setToolTipText(Messages.getString(
+              "CommonSettingsDialog.showReportKeywordsList.tooltip"));
+        chkReportShowKeywords.setSelected(GUIP.getMiniReportShowKeywords());
+        comps.add(row);
         JLabel reportKeywordsLabel = new JLabel(Messages.getString("CommonSettingsDialog.reportKeywords") + ": ");
         reportKeywordsTextPane = new JTextPane();
         row = new ArrayList<>();
         row.add(reportKeywordsLabel);
         row.add(reportKeywordsTextPane);
+        comps.add(row);
+
+        row = new ArrayList<>();
+        row.add(chkReportShowFilter);
+        chkReportShowFilter.setToolTipText(Messages.getString(
+              "CommonSettingsDialog.showReportFilterList.tooltip"));
+        chkReportShowFilter.setSelected(GUIP.getMiniReportShowFilter());
+        comps.add(row);
+        addLineSpacer(comps);
+
+        JLabel reportFilterKeywordsLabel = new JLabel(Messages.getString("CommonSettingsDialog.reportFilterKeywords")
+              + ":"
+              + " ");
+        reportFilterKeywordsTextPane = new JTextPane();
+        row = new ArrayList<>();
+        row.add(reportFilterKeywordsLabel);
+        row.add(reportFilterKeywordsTextPane);
         comps.add(row);
 
         return createSettingsPanel(comps);
@@ -1697,8 +1744,7 @@ public class CommonSettingsDialog extends AbstractButtonDialog
         traceOverlayTransparencySlider.setMaximumSize(new Dimension(1000, 100));
         traceOverlayTransparencySlider.addChangeListener(this);
         traceOverlayTransparencySlider.setToolTipText(
-              Messages.getString(
-                    "CommonSettingsDialog.TraceOverlayTransparency.tooltip"));
+              Messages.getString("CommonSettingsDialog.TraceOverlayTransparency.tooltip"));
         traceOverlayTransparencySlider.setValue(GUIP.getTraceOverlayTransparency());
 
         row = new ArrayList<>();
@@ -1785,8 +1831,7 @@ public class CommonSettingsDialog extends AbstractButtonDialog
         traceOverlayImageFile.setText(GUIP.getTraceOverlayImageFile());
         JButton traceOverlayImageFileChooser = new JButton("...");
         traceOverlayImageFileChooser.addActionListener(
-              e -> selectTraceOverlayImageFile(traceOverlayImageFile,
-                    getFrame()));
+              e -> selectTraceOverlayImageFile(traceOverlayImageFile, getFrame()));
 
         row = new ArrayList<>();
         row.add(traceOverlayImageFileLabel);
@@ -2145,6 +2190,8 @@ public class CommonSettingsDialog extends AbstractButtonDialog
               Messages.getString("CommonSettingsDialog.showIPAddressesInChat.tooltip")));
         comps.add(checkboxEntry(startSearchlightsOn,
               Messages.getString("CommonSettingsDialog.startSearchlightsOn.tooltip")));
+        comps.add(checkboxEntry(spritesOnly,
+              Messages.getString("CommonSettingsDialog.spritesOnly.tooltip")));
         return createSettingsPanel(comps);
     }
 
@@ -2250,8 +2297,10 @@ public class CommonSettingsDialog extends AbstractButtonDialog
             stampFormat.setEnabled(stampFilenames.isSelected());
             stampFormat.setText(CLIENT_PREFERENCES.getStampFormat());
             reportKeywordsTextPane.setText(CLIENT_PREFERENCES.getReportKeywords());
+            reportFilterKeywordsTextPane.setText(CLIENT_PREFERENCES.getReportFilterKeywords());
             showIPAddressesInChat.setSelected(CLIENT_PREFERENCES.getShowIPAddressesInChat());
             startSearchlightsOn.setSelected(CLIENT_PREFERENCES.getStartSearchlightsOn());
+            spritesOnly.setSelected(CLIENT_PREFERENCES.getSpritesOnly());
 
             defaultAutoEjectDisabled.setSelected(CLIENT_PREFERENCES.defaultAutoEjectDisabled());
             useAverageSkills.setSelected(CLIENT_PREFERENCES.useAverageSkills());
@@ -2324,9 +2373,9 @@ public class CommonSettingsDialog extends AbstractButtonDialog
             xmlFiles.addAll(filteredFiles(internalUserDataDir, ".xml"));
             xmlFiles.removeIf(file -> !SkinXMLHandler.validSkinSpecFile(file));
             Collections.sort(xmlFiles);
-            var model = new DefaultComboBoxModel<>(xmlFiles.toArray(new String[0]));
+            ComboBoxModel<String> model = new DefaultComboBoxModel<>(xmlFiles.toArray(new String[0]));
+            model.setSelectedItem(GUIP.getSkinFile());
             skinFiles.setModel(model);
-            skinFiles.setSelectedItem(GUIP.getSkinFile());
 
             uiThemes.removeAllItems();
             for (LookAndFeelInfo lafInfo : UIManager.getInstalledLookAndFeels()) {
@@ -2743,8 +2792,10 @@ public class CommonSettingsDialog extends AbstractButtonDialog
         CLIENT_PREFERENCES.setStampFilenames(stampFilenames.isSelected());
         CLIENT_PREFERENCES.setStampFormat(stampFormat.getText());
         CLIENT_PREFERENCES.setReportKeywords(reportKeywordsTextPane.getText());
+        CLIENT_PREFERENCES.setReportFilterKeywords(reportFilterKeywordsTextPane.getText());
         CLIENT_PREFERENCES.setShowIPAddressesInChat(showIPAddressesInChat.isSelected());
         CLIENT_PREFERENCES.setStartSearchlightsOn(startSearchlightsOn.isSelected());
+        CLIENT_PREFERENCES.setSpritesOnly(spritesOnly.isSelected());
         CLIENT_PREFERENCES.setEnableExperimentalBotFeatures(enableExperimentalBotFeatures.isSelected());
         CLIENT_PREFERENCES.setDefaultAutoEjectDisabled(defaultAutoEjectDisabled.isSelected());
         CLIENT_PREFERENCES.setUseAverageSkills(useAverageSkills.isSelected());
@@ -3004,7 +3055,6 @@ public class CommonSettingsDialog extends AbstractButtonDialog
 
         GUIP.setUnitDisplayMekArmorLargeFontSize(MathUtility.parseInt(unitDisplayMekArmorLargeFontSizeText.getText()));
         GUIP.setUnitDisplayMekArmorMediumFontSize(MathUtility.parseInt(unitDisplayMekArmorMediumFontSizeText.getText()));
-
         GUIP.setUnitDisplayMekArmorSmallFontSize(MathUtility.parseInt(unitDisplayMekArmorSmallFontSizeText.getText()));
         GUIP.setUnitDisplayMekLargeFontSize(MathUtility.parseInt(unitDisplayMekLargeFontSizeText.getText()));
         GUIP.setUnitDisplayMekMediumFontSize(MathUtility.parseInt(unitDisplayMekMediumFontSizeText.getText()));
@@ -3033,7 +3083,10 @@ public class CommonSettingsDialog extends AbstractButtonDialog
         GUIP.setUnitToolTipArmorMiniCriticalChar(unitTooltipArmorMiniCriticalCharText.getText());
         GUIP.setUnitTooltipArmorMiniDestroyedChar(unitTooltipArmorMiniDestroyedCharText.getText());
         GUIP.setUnitTooltipArmorMiniCapArmorChar(unitTooltipArmorMiniCapArmorCharText.getText());
-        GUIP.setUnitTooltipArmorMiniUnitsPerBlock(MathUtility.parseInt(unitTooltipArmorMiniUnitsPerBlockText.getText()));
+
+        GUIP.setUnitTooltipArmorMiniUnitsPerBlock
+              (MathUtility.parseInt(unitTooltipArmorMiniUnitsPerBlockText.getText()));
+        GUIP.setUnitToolTipFontSize((String) unitTooltipFontSizeModCbo.getSelectedItem());
 
         Object unitToolTipFontSize = unitTooltipFontSizeModCbo.getSelectedItem();
 
@@ -3052,6 +3105,13 @@ public class CommonSettingsDialog extends AbstractButtonDialog
         }
 
         GUIP.setMiniReportShowSprites(showReportSprites.isSelected());
+        GUIP.setMiniReportShowPlayers(chkReportShowPlayers.isSelected());
+        GUIP.setMiniReportShowUnits(chkReportShowUnits.isSelected());
+        GUIP.setMiniReportShowKeywords(chkReportShowKeywords.isSelected());
+        GUIP.setMiniReportShowFilter(chkReportShowFilter.isSelected());
+        if ((clientgui != null) && (clientgui.getMiniReportDisplay() != null)) {
+            clientgui.getMiniReportDisplay().refreshSearchPanel();
+        }
 
         GUIP.setUnitOverviewTextShadowColor(csbUnitOverviewTextShadowColor.getColour());
         GUIP.setUnitOverviewConditionShadowColor(csbUnitOverviewConditionShadowColor.getColour());
@@ -3147,6 +3207,7 @@ public class CommonSettingsDialog extends AbstractButtonDialog
 
     @Override
     public void focusGained(FocusEvent e) {
+
     }
 
     @Override
