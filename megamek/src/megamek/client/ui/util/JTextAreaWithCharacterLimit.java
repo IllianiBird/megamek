@@ -44,7 +44,7 @@ import javax.swing.text.PlainDocument;
  * create restricted {@code JTextArea} components.</p>
  *
  * @author Illiani
- * @since 0.50.07
+ * @since 0.50.11
  */
 public class JTextAreaWithCharacterLimit {
     /**
@@ -58,9 +58,13 @@ public class JTextAreaWithCharacterLimit {
      * @return a configured {@link JTextArea} with the applied character limit
      *
      * @author Illiani
-     * @since 0.50.07
+     * @since 0.50.11
      */
     public static JTextArea createLimitedTextArea(int maxChars, int columns) {
+        if (maxChars <= 0) {
+            throw new IllegalArgumentException("maxChars must be positive");
+        }
+
         JTextArea area = new JTextArea(1, columns);
         area.setLineWrap(true);
         area.setWrapStyleWord(true);
@@ -74,7 +78,7 @@ public class JTextAreaWithCharacterLimit {
      * {@link JTextArea}) that uses it.
      *
      * @author Illiani
-     * @since 0.50.07
+     * @since 0.50.11
      */
     private static class LimitedDocument extends PlainDocument {
         private final int maxChars;
@@ -85,7 +89,7 @@ public class JTextAreaWithCharacterLimit {
          * @param maxChars the maximum number of characters allowed in this document
          *
          * @author Illiani
-         * @since 0.50.07
+         * @since 0.50.11
          */
         public LimitedDocument(int maxChars) {
             this.maxChars = maxChars;
@@ -103,11 +107,13 @@ public class JTextAreaWithCharacterLimit {
          *
          * @throws BadLocationException if the given insert position is not a valid position within the document
          * @author Illiani
-         * @since 0.50.07
+         * @since 0.50.11
          */
         @Override
         public void insertString(int offset, String string, AttributeSet attributeSet) throws BadLocationException {
-            if (string == null) {return;}
+            if (string == null) {
+                return;
+            }
             if ((getLength() + string.length()) <= maxChars) {
                 super.insertString(offset, string, attributeSet);
             } else {
