@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import megamek.common.equipment.Mounted;
+import megamek.common.options.OptionsConstants;
 import megamek.common.units.Entity;
 import megamek.common.units.Infantry;
 import megamek.common.weapons.infantry.InfantryWeapon;
@@ -60,6 +61,15 @@ public class InfantryBVCalculator extends BVCalculator {
         String calculation = men + " x 1.5";
         calculation += dmgDivisor != 1 ? " x " + formatForReport(dmgDivisor) : "";
         bvReport.addLine("Troopers:", calculation, "= " + formatForReport(defensiveValue));
+
+        // Cybernetic Gas Effuser (Pheromone): +0.05 per trooper to Defensive BR (IO pg 79)
+        if (infantry.hasAbility(OptionsConstants.MD_GAS_EFFUSER_PHEROMONE)) {
+            double pheromoneBonus = men * 0.05;
+            defensiveValue += pheromoneBonus;
+            bvReport.addLine("Gas Effuser (Pheromone):",
+                  men + " x 0.05",
+                  "= +" + formatForReport(pheromoneBonus));
+        }
     }
 
     @Override
@@ -68,7 +78,17 @@ public class InfantryBVCalculator extends BVCalculator {
 
     @Override
     protected double tmmFactor(int tmmRunning, int tmmJumping, int tmmUmu) {
-        double tmmFactor = super.tmmFactor(tmmRunning, tmmJumping, tmmUmu);
+        // Dermal Camo provides +3 when stationary, use as potential max TMM
+        int maxTmm = Math.max(tmmRunning, Math.max(tmmJumping, tmmUmu));
+        if (infantry.hasDermalCamoStealth()) {
+            int dermalCamoTmm = 3; // +3 when stationary
+            if (dermalCamoTmm > maxTmm) {
+                maxTmm = dermalCamoTmm;
+                bvReport.addLine("Dermal Camo TMM:", "+3 (stationary)");
+            }
+        }
+        double tmmFactor = 1 + (maxTmm / 10.0);
+
         if (infantry.hasDEST()) {
             tmmFactor += 0.2;
             bvReport.addLine("DEST:", "+0.2");
@@ -123,6 +143,15 @@ public class InfantryBVCalculator extends BVCalculator {
                 Mounted<?> secondaryWeaponMounted = Mounted.createMounted(infantry, secondaryWeapon);
                 processWeapon(secondaryWeaponMounted, true, true, secondaryShooterCount);
             }
+        }
+
+        // Cybernetic Gas Effuser (Toxin): +0.23 per trooper to Offensive BR (IO pg 79)
+        if (infantry.hasAbility(OptionsConstants.MD_GAS_EFFUSER_TOXIN)) {
+            double toxinBonus = originalTroopers * 0.23;
+            offensiveValue += toxinBonus;
+            bvReport.addLine("Gas Effuser (Toxin):",
+                  originalTroopers + " x 0.23",
+                  "= +" + formatForReport(toxinBonus));
         }
 
         int troopers = Math.max(0, infantry.getInternal(Infantry.LOC_INFANTRY));

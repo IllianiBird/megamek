@@ -133,7 +133,6 @@ import megamek.common.weapons.bombs.BombISRL10;
 import megamek.common.weapons.bombs.clan.CLAAAMissileWeapon;
 import megamek.common.weapons.bombs.clan.CLASEWMissileWeapon;
 import megamek.common.weapons.bombs.clan.CLASMissileWeapon;
-import megamek.common.weapons.bombs.clan.CLBombTAG;
 import megamek.common.weapons.bombs.clan.CLLAAMissileWeapon;
 import megamek.common.weapons.bombs.innerSphere.ISAAAMissileWeapon;
 import megamek.common.weapons.bombs.innerSphere.ISASEWMissileWeapon;
@@ -232,6 +231,8 @@ public abstract class Entity extends TurnOrdered
     public static final long ETYPE_AEROSPACE_FIGHTER = 1L << 28;
 
     public static final long ETYPE_HANDHELD_WEAPON = 1L << 29;
+
+    public static final long ETYPE_BUILDING_ENTITY = 1L << 30;
 
     public static final int BLOOD_STALKER_TARGET_CLEARED = -2;
 
@@ -4957,7 +4958,6 @@ public abstract class Entity extends TurnOrdered
               (m.getType() instanceof CLLAAMissileWeapon) ||
               (m.getType() instanceof BombArrowIV)
               /* || m.getType() instanceof CLBombArrowIV */ ||
-              (m.getType() instanceof CLBombTAG) ||
               (m.getType() instanceof ISBombTAG) ||
               (m.getType() instanceof BombISRL10) ||
               (m.getType() instanceof AlamoMissileWeapon));
@@ -4974,7 +4974,6 @@ public abstract class Entity extends TurnOrdered
               (m.getType() instanceof CLLAAMissileWeapon) ||
               (m.getType() instanceof BombArrowIV)
               /* || m.getType() instanceof CLBombArrowIV */ ||
-              (m.getType() instanceof CLBombTAG) ||
               (m.getType() instanceof ISBombTAG) ||
               (m.getType() instanceof BombISRL10) ||
               (m.getType() instanceof AlamoMissileWeapon));
@@ -5984,12 +5983,16 @@ public abstract class Entity extends TurnOrdered
             }
         }
 
-        // check for Manei Domini implants
-        if (((hasAbility(OptionsConstants.MD_CYBER_IMP_AUDIO) ||
-              hasAbility(OptionsConstants.MD_CYBER_IMP_VISUAL) ||
-              hasAbility(OptionsConstants.MD_MM_IMPLANTS)) && isConventionalInfantry()) ||
-              (hasAbility(OptionsConstants.MD_MM_IMPLANTS) &&
-                    (hasAbility(OptionsConstants.MD_VDNI) || hasAbility(OptionsConstants.MD_BVDNI)))) {
+        // Sensory implants: IR/EM optical OR enhanced audio = 2-hex active probe (infantry only)
+        // Benefits don't stack - having both still only gives one probe
+        // MM/Enhanced MM implants also provide probe capability for infantry or for units with VDNI/BVDNI
+        boolean hasMmImplants = hasAbility(OptionsConstants.MD_MM_IMPLANTS)
+              || hasAbility(OptionsConstants.MD_ENH_MM_IMPLANTS);
+        if (((hasAbility(OptionsConstants.MD_CYBER_IMP_AUDIO)
+              || hasAbility(OptionsConstants.MD_CYBER_IMP_VISUAL)
+              || hasMmImplants) && isConventionalInfantry())
+              || (hasMmImplants
+              && (hasAbility(OptionsConstants.MD_VDNI) || hasAbility(OptionsConstants.MD_BVDNI)))) {
             return !checkECM || !ComputeECM.isAffectedByECM(this, getPosition(), getPosition());
         }
         // check for quirk
@@ -6015,13 +6018,33 @@ public abstract class Entity extends TurnOrdered
         if (conditions.getEMI().isEMI() || isShutDown()) {
             return Entity.NONE;
         }
-        // check for Manei Domini implants
-        int cyberBonus = 0;
-        if (((hasAbility(OptionsConstants.MD_CYBER_IMP_AUDIO) || hasAbility(OptionsConstants.MD_MM_IMPLANTS)) ||
-              hasAbility(OptionsConstants.MD_CYBER_IMP_VISUAL) && isConventionalInfantry()) ||
-              (hasAbility(OptionsConstants.MD_MM_IMPLANTS) &&
-                    (hasAbility(OptionsConstants.MD_VDNI) || hasAbility(OptionsConstants.MD_BVDNI)))) {
-            cyberBonus = 2;
+        // Sensory implants provide active probe capability:
+        // - Basic implants (audio/visual): 2-hex probe for infantry only
+        // - MM implants: 2-hex probe for infantry, or non-infantry with VDNI/BVDNI; +1 to existing BAP
+        // - Enhanced MM implants: 3-hex probe for infantry, or non-infantry with VDNI/BVDNI; +2 to existing BAP
+        // Benefits don't stack within category
+        boolean hasMmImplants = hasAbility(OptionsConstants.MD_MM_IMPLANTS)
+              || hasAbility(OptionsConstants.MD_ENH_MM_IMPLANTS);
+        boolean hasEnhancedMm = hasAbility(OptionsConstants.MD_ENH_MM_IMPLANTS);
+        boolean hasBasicImplants = hasAbility(OptionsConstants.MD_CYBER_IMP_AUDIO)
+              || hasAbility(OptionsConstants.MD_CYBER_IMP_VISUAL);
+        boolean hasVdni = hasAbility(OptionsConstants.MD_VDNI) || hasAbility(OptionsConstants.MD_BVDNI);
+
+        // Check if sensory implants are active (infantry, or non-infantry with VDNI for MM implants)
+        boolean sensoryImplantsActive = ((hasBasicImplants || hasMmImplants) && isConventionalInfantry())
+              || (hasMmImplants && hasVdni);
+
+        // Base probe range from implants alone (no BAP): Enhanced=3, others=2
+        int cyberBaseProbe = sensoryImplantsActive ? (hasEnhancedMm ? 3 : 2) : 0;
+        // Bonus to existing BAP range: Enhanced=+2, MM=+1, basic=0
+        int cyberProbeBonus = 0;
+        if (sensoryImplantsActive) {
+            if (hasEnhancedMm) {
+                cyberProbeBonus = 2;
+            } else if (hasMmImplants) {
+                cyberProbeBonus = 1;
+            }
+            // Basic implants (audio/visual) don't add to existing BAP range
         }
 
         // check for quirks
@@ -6050,28 +6073,29 @@ public abstract class Entity extends TurnOrdered
                 }
 
                 if (m.getName().equals("Bloodhound Active Probe (THB)") || m.getName().equals(Sensor.BAP)) {
-                    return 8 + cyberBonus + quirkBonus + spaBonus;
+                    return 8 + cyberProbeBonus + quirkBonus + spaBonus;
                 }
                 if ((m.getType()).getInternalName().equals(Sensor.CLAN_AP) ||
                       (m.getType()).getInternalName().equals(Sensor.WATCHDOG) ||
                       (m.getType()).getInternalName().equals(Sensor.NOVA)) {
-                    return 5 + cyberBonus + quirkBonus + spaBonus;
+                    return 5 + cyberProbeBonus + quirkBonus + spaBonus;
                 }
                 if ((m.getType()).getInternalName().equals(Sensor.LIGHT_AP) ||
                       (m.getType().getInternalName().equals(Sensor.CL_BA_LIGHT_AP)) ||
                       (m.getType().getInternalName().equals(Sensor.IS_BA_LIGHT_AP))) {
-                    return 3 + cyberBonus + quirkBonus + spaBonus;
+                    return 3 + cyberProbeBonus + quirkBonus + spaBonus;
                 }
                 if (m.getType().getInternalName().equals(Sensor.IS_IMPROVED) ||
                       (m.getType().getInternalName().equals(Sensor.CL_IMPROVED))) {
-                    return 2 + cyberBonus + quirkBonus + spaBonus;
+                    return 2 + cyberProbeBonus + quirkBonus + spaBonus;
                 }
-                return 4 + cyberBonus + quirkBonus + spaBonus;// everything else should be
+                return 4 + cyberProbeBonus + quirkBonus + spaBonus;// everything else should be
                 // range 4
             }
         }
-        if ((cyberBonus + quirkBonus + spaBonus) > 0) {
-            return cyberBonus + quirkBonus + spaBonus;
+        // No BAP equipped - return base probe from implants/quirks/SPA
+        if ((cyberBaseProbe + quirkBonus + spaBonus) > 0) {
+            return cyberBaseProbe + quirkBonus + spaBonus;
         }
 
         return Entity.NONE;
@@ -6304,13 +6328,8 @@ public abstract class Entity extends TurnOrdered
                 return true;
             }
         }
-        // check for Manei Domini implants
-        return (this instanceof Infantry) &&
-              (null != crew)
-              // Fix for Bug Report #1194
-              &&
-              hasAbility(OptionsConstants.MD_ENH_MM_IMPLANTS) &&
-              hasAbility(OptionsConstants.MD_BOOST_COMM_IMPLANT);
+        // Boosted Comm Implant grants C3i access for any unit (pilots/crew/troops)
+        return (null != crew) && hasAbility(OptionsConstants.MD_BOOST_COMM_IMPLANT);
     }
 
     /**
@@ -13174,6 +13193,170 @@ public abstract class Entity extends TurnOrdered
         return quirks.booleanOption(name);
     }
 
+    /**
+     * Gets the obsolete quirk value as a raw string.
+     * Format is comma-separated years: "obsoleteYear,reintroYear,obsoleteYear2,reintroYear2,..."
+     *
+     * @return The raw obsolete quirk string, or empty string if not set
+     */
+    public String getObsoleteQuirkValue() {
+        IOption option = quirks.getOption(OptionsConstants.QUIRK_NEG_OBSOLETE);
+        if (option == null) {
+            return "";
+        }
+        String value = option.stringValue();
+        return value != null ? value : "";
+    }
+
+    /** Marker value for legacy obsolete quirk with unknown year */
+    public static final String OBSOLETE_UNKNOWN_MARKER = "unknown";
+
+    /**
+     * Parses the obsolete quirk value into a list of years.
+     * Format: "obsoleteYear,reintroYear,obsoleteYear2,..." where pairs define obsolete periods.
+     *
+     * @return List of years parsed from the obsolete quirk, empty list if not set or if set to "unknown"
+     */
+    public List<Integer> getObsoleteYears() {
+        String value = getObsoleteQuirkValue();
+        if (value.isEmpty() || OBSOLETE_UNKNOWN_MARKER.equalsIgnoreCase(value)) {
+            return new ArrayList<>();
+        }
+
+        List<Integer> years = new ArrayList<>();
+        String[] parts = value.split(",");
+        for (String part : parts) {
+            try {
+                years.add(Integer.parseInt(part.trim()));
+            } catch (NumberFormatException e) {
+                LOGGER.warn("Invalid year in obsolete quirk for {} {}: {}", getChassis(), getModel(), part);
+            }
+        }
+        return years;
+    }
+
+    /**
+     * Checks if this unit has the Obsolete quirk set, regardless of whether the year is known. Use this to check if the
+     * quirk is active. Use isObsoleteInYear() to check if the unit is obsolete at a specific year.
+     *
+     * @return true if the Obsolete quirk is set (even if year is unknown)
+     */
+    public boolean hasObsoleteQuirk() {
+        String value = getObsoleteQuirkValue();
+        return !value.isEmpty();
+    }
+
+    /**
+     * Gets the first year when production of this obsolete unit ceased.
+     * Kept for backward compatibility - use isObsoleteInYear() for full cycle support.
+     *
+     * @return The first year production ceased, or 0 if the unit doesn't have the Obsolete quirk
+     */
+    public int getObsoleteYear() {
+        List<Integer> years = getObsoleteYears();
+        return years.isEmpty() ? 0 : years.get(0);
+    }
+
+    /**
+     * Checks if the unit is obsolete in a given year. Handles multiple obsolete/reintroduction cycles. Format:
+     * "2950,3146,3200" means obsolete 2950-3145, available 3146-3199, obsolete 3200+
+     *
+     * @param checkYear The year to check
+     *
+     * @return true if the unit is obsolete in that year
+     */
+    public boolean isObsoleteInYear(int checkYear) {
+        List<Integer> years = getObsoleteYears();
+        if (years.isEmpty()) {
+            return false;
+        }
+
+        // Process pairs: obsoleteYear, reintroYear, obsoleteYear2, reintroYear2, ...
+        boolean obsolete = false;
+        for (int i = 0; i < years.size(); i++) {
+            int year = years.get(i);
+            if (i % 2 == 0) {
+                // Obsolete year
+                if (checkYear >= year) {
+                    obsolete = true;
+                }
+            } else {
+                // Reintroduction year
+                if (checkYear >= year) {
+                    obsolete = false;
+                }
+            }
+        }
+        return obsolete;
+    }
+
+    /**
+     * Gets the most recent obsolete period start year that applies to the given year. Used for calculating repair
+     * modifiers based on how long the unit has been obsolete.
+     *
+     * @param checkYear The year to check
+     *
+     * @return The start year of the current obsolete period, or 0 if not obsolete
+     */
+    public int getObsoleteYearForModifiers(int checkYear) {
+        List<Integer> years = getObsoleteYears();
+        if (years.isEmpty()) {
+            return 0;
+        }
+
+        int currentObsoleteStart = 0;
+        for (int i = 0; i < years.size(); i++) {
+            int year = years.get(i);
+            if (i % 2 == 0) {
+                // Obsolete year
+                if (checkYear >= year) {
+                    currentObsoleteStart = year;
+                }
+            } else {
+                // Reintroduction year
+                if (checkYear >= year) {
+                    currentObsoleteStart = 0;
+                }
+            }
+        }
+        return currentObsoleteStart;
+    }
+
+    /**
+     * Calculates the repair/parts target number modifier for an obsolete unit.
+     * Per the rules: +1 TN per 15 years after production ceased, maximum +5.
+     *
+     * @param gameYear The current game year
+     * @return The TN modifier (0 to +5), or 0 if not obsolete
+     */
+    public int getObsoleteRepairModifier(int gameYear) {
+        int obsoleteYear = getObsoleteYearForModifiers(gameYear);
+        if (obsoleteYear <= 0) {
+            return 0;
+        }
+        int yearsObsolete = gameYear - obsoleteYear;
+        int modifier = yearsObsolete / 15;
+        return Math.min(modifier, 5);
+    }
+
+    /**
+     * Calculates the resale price modifier for an obsolete unit.
+     * Per the rules: -10% per 20 years after production ceased, minimum 50%.
+     *
+     * @param gameYear The current game year
+     * @return The resale multiplier (0.5 to 1.0), or 1.0 if not obsolete
+     */
+    public double getObsoleteResaleModifier(int gameYear) {
+        int obsoleteYear = getObsoleteYearForModifiers(gameYear);
+        if (obsoleteYear <= 0) {
+            return 1.0;
+        }
+        int yearsObsolete = gameYear - obsoleteYear;
+        int reductions = yearsObsolete / 20;
+        double modifier = 1.0 - (reductions * 0.10);
+        return Math.max(modifier, 0.5);
+    }
+
     public PartialRepairs getPartialRepairs() {
         return partReps;
     }
@@ -14477,15 +14660,59 @@ public abstract class Entity extends TurnOrdered
             // If the quirk doesn't have a location, then it is a unit quirk, not a weapon quirk.
             if (StringUtility.isNullOrBlank(quirkEntry.location())) {
                 // Activate the unit quirk.
-                if (getQuirks().getOption(quirkEntry.getQuirk()) == null) {
+                IOption option = getQuirks().getOption(quirkEntry.getQuirk());
+                if (option == null) {
                     LOGGER.warn("{} failed to load quirk for {} {} - Invalid quirk!", quirkEntry, getChassis(),
                           getModel());
                     continue;
                 }
-                getQuirks().getOption(quirkEntry.getQuirk()).setValue(true);
+                // Handle quirks with values (e.g., obsolete:2750 or obsolete:2950,3146)
+                if (quirkEntry.hasValue()) {
+                    if (option.getType() == IOption.INTEGER) {
+                        try {
+                            option.setValue(Integer.parseInt(quirkEntry.value()));
+                        } catch (NumberFormatException e) {
+                            LOGGER.warn("{} failed to parse quirk value for {} {} - Invalid number: {}",
+                                  quirkEntry, getChassis(), getModel(), quirkEntry.value());
+                        }
+                    } else if (option.getType() == IOption.STRING) {
+                        option.setValue(quirkEntry.value());
+                    } else {
+                        // For other quirks with values, store as string
+                        option.setValue(quirkEntry.value());
+                    }
+                } else {
+                    // No value provided - handle based on option type
+                    if (option.getType() == IOption.BOOLEAN) {
+                        option.setValue(true);
+                    } else if (option.getType() == IOption.INTEGER) {
+                        // Old unit files may have integer quirks without values - use default
+                        LOGGER.warn("Quirk {} for {} {} has no value, using default",
+                              quirkEntry.getQuirk(), getChassis(), getModel());
+                        option.setValue(option.getDefault());
+                    } else if (option.getType() == IOption.STRING) {
+                        // Handle backward compatibility for old boolean-style obsolete quirk
+                        if (OptionsConstants.QUIRK_NEG_OBSOLETE.equals(quirkEntry.getQuirk())) {
+                            // Old format: just "obsolete" with no value means unit is obsolete
+                            // but we don't know when. Set to "unknown" as a marker value.
+                            // This marks the quirk as active but won't add invalid extinction dates.
+                            LOGGER.info("Legacy obsolete quirk found for {} {} - converting to 'unknown' marker",
+                                  getChassis(), getModel());
+                            option.setValue("unknown");
+                        } else {
+                            option.setValue("");
+                        }
+                    }
+                }
             } else {
                 assignWeaponQuirk(quirkEntry);
             }
+        }
+
+        // After loading quirks, check if the Obsolete quirk was loaded and update tech advancement
+        List<Integer> obsoleteYears = getObsoleteYears();
+        if (!obsoleteYears.isEmpty()) {
+            compositeTechLevel.setObsoleteYears(obsoleteYears);
         }
     }
 
@@ -14655,6 +14882,8 @@ public abstract class Entity extends TurnOrdered
             return "ProtoMek";
         } else if ((typeId & ETYPE_HANDHELD_WEAPON) == ETYPE_HANDHELD_WEAPON) {
             return "Handheld Weapon";
+        } else if ((typeId & ETYPE_BUILDING_ENTITY) == ETYPE_BUILDING_ENTITY) {
+            return "Building Entity";
         } else {
             return "Unknown";
         }
@@ -14726,6 +14955,8 @@ public abstract class Entity extends TurnOrdered
             return "Tank";
         } else if ((typeId & ETYPE_HANDHELD_WEAPON) == ETYPE_HANDHELD_WEAPON) {
             return "Handheld Weapon";
+        } else if ((typeId & ETYPE_BUILDING_ENTITY) == ETYPE_BUILDING_ENTITY) {
+            return "Building Entity";
         } else {
             return "Unknown";
         }

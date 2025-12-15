@@ -7505,6 +7505,13 @@ public class TWGameManager extends AbstractGameManager {
                 if (entity.hasAbility(OptionsConstants.MISC_EAGLE_EYES)) {
                     target += 2;
                 }
+                // Comm implant makes it easier for infantry to avoid mines
+                // Boosted comm implant provides same benefit as regular comm implant
+                if ((entity instanceof Infantry) &&
+                      (entity.hasAbility(OptionsConstants.MD_COMM_IMPLANT) ||
+                            entity.hasAbility(OptionsConstants.MD_BOOST_COMM_IMPLANT))) {
+                    target += 1;
+                }
                 if ((entity.getMovementMode() == EntityMovementMode.HOVER) ||
                       (entity.getMovementMode() == EntityMovementMode.WIGE)) {
                     target = Minefield.HOVER_WIGE_DETONATION_TARGET;
@@ -9744,9 +9751,14 @@ public class TWGameManager extends AbstractGameManager {
                     });
                     Vector<Integer> spotterIds = new Vector<>();
                     while (spotters.hasNext()) {
-                        Integer id = spotters.next().getId();
+                        Entity spotter = spotters.next();
+                        Integer id = spotter.getId();
                         spotterIds.addElement(id);
+                        LOGGER.debug("Artillery attack declaration: found spotter {} (id={})",
+                              spotter.getDisplayName(), id);
                     }
+                    LOGGER.debug("Artillery attack declaration: setting {} spotters on action",
+                          spotterIds.size());
                     aaa.setSpotterIds(spotterIds);
                 }
             }
@@ -12822,6 +12834,164 @@ public class TWGameManager extends AbstractGameManager {
     }
 
     /**
+     * Handle a pheromone gas attack (IO pg 79). Conventional Infantry with Gas Effuser (Pheromone) implant releases
+     * pheromone gas to impair enemy conventional infantry. On success, target suffers +1 to-hit on all actions for the
+     * remainder of the scenario.
+     */
+    private void resolvePheromoneAttack(PhysicalResult physicalResult, int lastEntityId) {
+        final PheromoneAttackAction pheromoneAttackAction = (PheromoneAttackAction) physicalResult.aaa;
+        final Entity attackingEntity = game.getEntity(pheromoneAttackAction.getEntityId());
+
+        if (attackingEntity == null) {
+            LOGGER.error("Attacking entity is null for Pheromone Attack");
+            return;
+        }
+
+        // Get ToHitData and roll from the PhysicalResult
+        final ToHitData toHit = physicalResult.toHit;
+        int rollValue = physicalResult.roll.getIntValue();
+
+        // Get target entity
+        final Entity targetEntity = game.getEntity(pheromoneAttackAction.getTargetId());
+        Report report;
+
+        if (lastEntityId != pheromoneAttackAction.getEntityId()) {
+            // Who is making the attack
+            report = new Report(4005);
+            report.subject = attackingEntity.getId();
+            report.addDesc(attackingEntity);
+            addReport(report);
+        }
+
+        // Report the pheromone attack attempt
+        report = new Report(4550);
+        report.subject = attackingEntity.getId();
+        report.indent();
+        report.addDesc(targetEntity);
+        report.newlines = 0;
+        addReport(report);
+
+        if (toHit.getValue() == TargetRoll.IMPOSSIBLE) {
+            report = new Report(4551);
+            report.subject = attackingEntity.getId();
+            report.add(toHit.getDesc());
+            addReport(report);
+            return;
+        }
+
+        // Report the roll
+        report = new Report(4025);
+        report.subject = attackingEntity.getId();
+        report.add(toHit);
+        report.add(physicalResult.roll);
+        report.newlines = 0;
+        addReport(report);
+
+        // Check hit
+        if (rollValue < toHit.getValue()) {
+            // Miss
+            report = new Report(4552);
+            report.subject = attackingEntity.getId();
+            addReport(report);
+            return;
+        }
+
+        // Hit! Apply pheromone impairment
+        if ((targetEntity instanceof Infantry targetInfantry)) {
+            targetInfantry.setPheromoneImpaired(true);
+
+            // Report hit with flavor text
+            report = new Report(4553);
+            report.subject = attackingEntity.getId();
+            report.addDesc(targetEntity);
+            addReport(report);
+        }
+        addNewLines();
+    }
+
+    /**
+     * Handle a toxin gas attack (IO pg 79). Conventional Infantry with Gas Effuser (Toxin) implant releases toxin gas
+     * to damage enemy conventional infantry. On success, target takes 0.25 damage per attacking trooper.
+     */
+    private void resolveToxinAttack(PhysicalResult physicalResult, int lastEntityId) {
+        final ToxinAttackAction toxinAttackAction = (ToxinAttackAction) physicalResult.aaa;
+        final Entity attackingEntity = game.getEntity(toxinAttackAction.getEntityId());
+
+        if (attackingEntity == null) {
+            LOGGER.error("Attacking entity is null for Toxin Attack");
+            return;
+        }
+
+        // Get ToHitData, damage, and roll from the PhysicalResult
+        final ToHitData toHit = physicalResult.toHit;
+        int damage = physicalResult.damage;
+        int rollValue = physicalResult.roll.getIntValue();
+
+        // Get target entity
+        final Entity targetEntity = game.getEntity(toxinAttackAction.getTargetId());
+        Report report;
+
+        if (lastEntityId != toxinAttackAction.getEntityId()) {
+            // Who is making the attack
+            report = new Report(4005);
+            report.subject = attackingEntity.getId();
+            report.addDesc(attackingEntity);
+            addReport(report);
+        }
+
+        // Report the toxin attack attempt
+        report = new Report(4560);
+        report.subject = attackingEntity.getId();
+        report.indent();
+        report.addDesc(targetEntity);
+        report.newlines = 0;
+        addReport(report);
+
+        if (toHit.getValue() == TargetRoll.IMPOSSIBLE) {
+            report = new Report(4561);
+            report.subject = attackingEntity.getId();
+            report.add(toHit.getDesc());
+            addReport(report);
+            return;
+        }
+
+        // Report the roll
+        report = new Report(4025);
+        report.subject = attackingEntity.getId();
+        report.add(toHit);
+        report.add(physicalResult.roll);
+        report.newlines = 0;
+        addReport(report);
+
+        // Check hit
+        if (rollValue < toHit.getValue()) {
+            // Miss
+            report = new Report(4562);
+            report.subject = attackingEntity.getId();
+            addReport(report);
+            return;
+        }
+
+        // Hit! Apply toxin damage
+        if (targetEntity != null) {
+            // Report hit with flavor text
+            report = new Report(4563);
+            report.subject = attackingEntity.getId();
+            report.addDesc(targetEntity);
+            report.add(damage);
+            addReport(report);
+
+            // Apply damage to conventional infantry
+            // Toxin gas is area-effect - no terrain modifiers (IO pg 79)
+            HitData hit = targetEntity.rollHitLocation(toHit.getHitTable(), toHit.getSideTable());
+            hit.setGeneralDamageType(HitData.DAMAGE_PHYSICAL);
+            hit.setIgnoreInfantryDoubleDamage(true);
+            addReport(damageEntity(targetEntity, hit, damage));
+        }
+        addNewLines();
+    }
+
+    /**
      * Handle a club attack
      */
     private void resolveClubAttack(PhysicalResult pr, int lastEntityId) {
@@ -14578,7 +14748,6 @@ public class TWGameManager extends AbstractGameManager {
 
         r = new Report(4230);
         r.subject = te.getId();
-        r.addDesc(te);
         r.add(damage);
         r.add(toHit.getTableDesc());
         r.indent();
@@ -14747,7 +14916,6 @@ public class TWGameManager extends AbstractGameManager {
         r = new Report(4230);
         if (te != null) {
             r.subject = te.getId();
-            r.addDesc(te);
         } else {
             r.subject = ae.getId();
         }
@@ -15305,7 +15473,6 @@ public class TWGameManager extends AbstractGameManager {
             r = new Report(4230);
             if (targetEntity != null) {
                 r.subject = targetEntity.getId();
-                r.addDesc(targetEntity);
             } else {
                 r.subject = ae.getId();
             }
@@ -17401,12 +17568,14 @@ public class TWGameManager extends AbstractGameManager {
             }
             IAero ship = (IAero) en;
             int damage = ship.getCurrentDamage();
+            // Per SO p.116: "+1 for every full 2 points over the Fatal Threshold"
             double divisor = 2.0;
             if (game.getOptions().booleanOption(OptionsConstants.ADVANCED_AERO_RULES_AERO_SANITY)) {
                 divisor = 20.0;
             }
             if (damage >= ship.getFatalThresh()) {
                 int roll = Compute.d6(2) + (int) Math.floor((damage - ship.getFatalThresh()) / divisor);
+                // Per SO p.116: "On a result of 10+, the fighter is considered destroyed"
                 if (roll > 9) {
                     // Lets auto-eject if we can!
                     if (ship instanceof LandAirMek lam) {
@@ -19059,7 +19228,9 @@ public class TWGameManager extends AbstractGameManager {
         if (((secondaryEffects && eqType.isExplosive(mounted)) ||
               mounted.isHotLoaded() ||
               (mounted.hasChargedCapacitor() != 0)) && !hitBefore) {
-            reports.addAll(explodeEquipment(en, loc, mounted));
+            // Hot-loaded launchers must override the explosive check since the launcher itself
+            // isn't inherently explosive, but hot-loaded ammo makes it explode on crit (TO p.102-103)
+            reports.addAll(explodeEquipment(en, loc, mounted, mounted.isHotLoaded()));
         }
 
         // Make sure that ammo in this slot is exhausted.
@@ -19635,7 +19806,8 @@ public class TWGameManager extends AbstractGameManager {
             case Aero.CRIT_CREW:
                 // pilot hit
                 r = new Report(6650);
-                if (aero.hasAbility(OptionsConstants.MD_DERMAL_ARMOR)) {
+                if (aero.hasAbility(OptionsConstants.MD_DERMAL_ARMOR)
+                      || aero.hasAbility(OptionsConstants.MD_DERMAL_CAMO_ARMOR)) {
                     r = new Report(6651);
                     r.subject = aero.getId();
                     reports.add(r);
@@ -20553,8 +20725,9 @@ public class TWGameManager extends AbstractGameManager {
                     reports.add(r);
                     reports.addAll(damageCrew(tank, 1));
                 } else {
-                    if (tank.hasAbility(OptionsConstants.MD_PAIN_SHUNT) ||
-                          tank.hasAbility(OptionsConstants.MD_DERMAL_ARMOR)) {
+                    if (tank.hasAbility(OptionsConstants.MD_PAIN_SHUNT)
+                          || tank.hasAbility(OptionsConstants.MD_DERMAL_ARMOR)
+                          || tank.hasAbility(OptionsConstants.MD_DERMAL_CAMO_ARMOR)) {
                         r = new Report(6186);
                     } else {
                         tank.stunCrew();
@@ -23301,7 +23474,21 @@ public class TWGameManager extends AbstractGameManager {
     private Vector<Report> checkPilotAvoidFallDamage(Entity entity, int fallHeight, PilotingRollData roll) {
         Vector<Report> reports = new Vector<>();
 
-        if (entity.hasAbility(OptionsConstants.MD_DERMAL_ARMOR) || entity.hasAbility(OptionsConstants.MD_TSM_IMPLANT)) {
+        if (entity.hasAbility(OptionsConstants.MD_DERMAL_ARMOR)
+              || entity.hasAbility(OptionsConstants.MD_DERMAL_CAMO_ARMOR)
+              || entity.hasAbility(OptionsConstants.MD_TSM_IMPLANT)) {
+            // Report fall damage prevented for each crew member
+            for (int pos = 0; pos < entity.getCrew().getSlotCount(); pos++) {
+                if (entity.getCrew().isMissing(pos) || entity.getCrew().isDead(pos)) {
+                    continue;
+                }
+                Report r = new Report(2328);
+                r.subject = entity.getId();
+                r.add(entity.getCrew().getCrewType().getRoleName(pos));
+                r.addDesc(entity);
+                r.add(entity.getCrew().getName(pos));
+                reports.add(r);
+            }
             return reports;
         }
         // we want to be able to avoid pilot damage even when it was
@@ -26030,7 +26217,7 @@ public class TWGameManager extends AbstractGameManager {
             final Coords coords = entity.getPosition();
 
             // If the entity is infantry in the affected hex?
-            if ((entity instanceof Infantry) && bldg.isIn(coords) && coords.equals(hexCoords)) {
+            if ((entity instanceof Infantry) && coords.equals(hexCoords)) {
                 // Is the entity is inside the building
                 // (instead of just on top of it)?
                 if (Compute.isInBuilding(game, entity, coords)) {
@@ -26112,6 +26299,17 @@ public class TWGameManager extends AbstractGameManager {
     public boolean checkForCollapse(IBuilding bldg, Coords coords, boolean checkBecauseOfDamage,
           Vector<Report> vPhaseReport) {
         return buildingCollapseHandler.checkForCollapse(bldg, coords, checkBecauseOfDamage, vPhaseReport);
+    }
+
+    /**
+     * Tell the clients to add new buildings to the board.
+     *
+     * @param buildings - a <code>Vector</code> of <code>Building</code>s that need to be added.
+     *
+     * @return a <code>Packet</code> for the command.
+     */
+    private Packet createAddBuildingPacket(Vector<IBuilding> buildings) {
+        return new Packet(PacketCommand.BLDG_ADD, buildings);
     }
 
     /**
@@ -26567,6 +26765,10 @@ public class TWGameManager extends AbstractGameManager {
         return vDesc;
     }
 
+    public void sendNewBuildings(Vector<IBuilding> buildings) {
+        send(createAddBuildingPacket(buildings));
+    }
+
     public void sendChangedBuildings(Vector<IBuilding> buildings) {
         send(createUpdateBuildingPacket(buildings));
     }
@@ -26919,6 +27121,12 @@ public class TWGameManager extends AbstractGameManager {
         } else if (aaa instanceof BAVibroClawAttackAction baVibroClawAttackAction) {
             toHit = baVibroClawAttackAction.toHit(game);
             damage = BAVibroClawAttackAction.getDamageFor(ae);
+        } else if (aaa instanceof PheromoneAttackAction pheromoneAttackAction) {
+            toHit = pheromoneAttackAction.toHit(game);
+            damage = 0; // Pheromone attack causes no damage, only impairment
+        } else if (aaa instanceof ToxinAttackAction toxinAttackAction) {
+            toHit = toxinAttackAction.toHit(game);
+            damage = ToxinAttackAction.getDamageFor((Infantry) ae);
         }
         pr.toHit = toHit;
         pr.damage = damage;
@@ -27006,6 +27214,12 @@ public class TWGameManager extends AbstractGameManager {
             cen = aaa.getEntityId();
         } else if (aaa instanceof BAVibroClawAttackAction) {
             resolveBAVibroClawAttack(pr, cen);
+            cen = aaa.getEntityId();
+        } else if (aaa instanceof PheromoneAttackAction) {
+            resolvePheromoneAttack(pr, cen);
+            cen = aaa.getEntityId();
+        } else if (aaa instanceof ToxinAttackAction) {
+            resolveToxinAttack(pr, cen);
             cen = aaa.getEntityId();
         } else {
             LOGGER.error("Unknown attack action declared.");
