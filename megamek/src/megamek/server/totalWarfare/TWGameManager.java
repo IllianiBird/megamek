@@ -5658,8 +5658,25 @@ public class TWGameManager extends AbstractGameManager {
         Vector<Report> vReport = new Vector<>();
         Report r;
 
-        OffBoardDirection fleeDirection = calculateEdge(movePath.getFinalCoords(), movePath.getFinalBoardId());
-        String retreatEdge = setRetreatEdge(entity, fleeDirection);
+        // For climb out (vertical exit at altitude 10), the client sets startingPos and exitAltitude.
+        // Climb out units with START_ANY can return anywhere on the map.
+        OffBoardDirection fleeDirection;
+        String retreatEdge;
+        IAero aeroUnit = entity.isAero() ? (IAero) entity : null;
+        boolean isClimbOut = (aeroUnit != null) && (aeroUnit.getExitAltitude() > 0);
+
+        if (isClimbOut && entity.getStartingPos() == Board.START_ANY) {
+            // Climb out to return anywhere - don't overwrite START_ANY with setRetreatEdge
+            fleeDirection = OffBoardDirection.NONE;
+            retreatEdge = "Above";
+        } else if (isClimbOut) {
+            // Climb out with specific edge selected
+            fleeDirection = OffBoardDirection.fromBoardStart(entity.getStartingPos());
+            retreatEdge = setRetreatEdge(entity, fleeDirection);
+        } else {
+            fleeDirection = calculateEdge(movePath.getFinalCoords(), movePath.getFinalBoardId());
+            retreatEdge = setRetreatEdge(entity, fleeDirection);
+        }
 
         // Aerospace that fly off to return in a later round must be handled
         // at the end of the round, but set some state here for simplicity
@@ -20727,7 +20744,8 @@ public class TWGameManager extends AbstractGameManager {
                 } else {
                     if (tank.hasAbility(OptionsConstants.MD_PAIN_SHUNT)
                           || tank.hasAbility(OptionsConstants.MD_DERMAL_ARMOR)
-                          || tank.hasAbility(OptionsConstants.MD_DERMAL_CAMO_ARMOR)) {
+                          || tank.hasAbility(OptionsConstants.MD_DERMAL_CAMO_ARMOR)
+                          || tank.hasAbility(OptionsConstants.MD_TSM_IMPLANT)) {
                         r = new Report(6186);
                     } else {
                         tank.stunCrew();
@@ -26217,7 +26235,7 @@ public class TWGameManager extends AbstractGameManager {
             final Coords coords = entity.getPosition();
 
             // If the entity is infantry in the affected hex?
-            if ((entity instanceof Infantry) && coords.equals(hexCoords)) {
+            if (coords != null && (entity instanceof Infantry) && coords.equals(hexCoords)) {
                 // Is the entity is inside the building
                 // (instead of just on top of it)?
                 if (Compute.isInBuilding(game, entity, coords)) {
