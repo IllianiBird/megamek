@@ -1624,6 +1624,14 @@ public class MoveStep implements Serializable {
                 return;
             }
 
+            // aerodynes cannot fly backwards in atmosphere
+            if (useAeroAtmosphere(game, entity) &&
+                  ((type == MoveStepType.BACKWARDS) ||
+                        (type == MoveStepType.LATERAL_LEFT_BACKWARDS) ||
+                        (type == MoveStepType.LATERAL_RIGHT_BACKWARDS))) {
+                return;
+            }
+
             // spheroids in atmosphere can move a max of 1 hex on the low atmosphere map and 8 hexes on the ground
             // map, regardless of any other considerations unless they're out of control, in which case, well...
             if (useSpheroidAtmosphere(game, entity) &&
@@ -2315,8 +2323,20 @@ public class MoveStep implements Serializable {
                     if (getTargetPosition() != null) {
                         curPos = getTargetPosition();
                     }
+                    // Infantry with jump capability or glider wings dismounting from VTOLs
+                    // land at ground level, not VTOL elevation (TW p.31, IO p.85)
+                    int unloadElevation = getElevation();
+                    if (entity instanceof VTOL && other.isInfantry()) {
+                        Infantry inf = (Infantry) other;
+                        if (inf.getJumpMP() > 0 || inf.canExitVTOLWithGliderWings()) {
+                            Hex destHex = game.getBoard(boardId).getHex(curPos);
+                            if (destHex != null) {
+                                unloadElevation = destHex.getLevel();
+                            }
+                        }
+                    }
                     if ((null != Compute.stackingViolation(game, other, curPos, entity, climbMode, true)) ||
-                          other.isLocationProhibited(curPos, getElevation())) {
+                          other.isLocationProhibited(curPos, unloadElevation)) {
                         movementType = EntityMovementType.MOVE_ILLEGAL;
                     }
                 } else {
