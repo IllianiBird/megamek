@@ -136,6 +136,7 @@ public class InfantryBVCalculator extends BVCalculator {
 
         if (infantry.canMakeAntiMekAttacks()) {
             bvReport.addLine("Anti-Mek:", "", "");
+            double preAntiMekBV = offensiveValue;
             if (primaryWeapon != null && !primaryWeapon.hasFlag(InfantryWeapon.F_INF_ARCHAIC)) {
                 Mounted<?> primaryWeaponMounted = Mounted.createMounted(infantry, primaryWeapon);
                 processWeapon(primaryWeaponMounted, true, true, primaryShooterCount);
@@ -143,6 +144,19 @@ public class InfantryBVCalculator extends BVCalculator {
             if (secondaryWeapon != null && !secondaryWeapon.hasFlag(InfantryWeapon.F_INF_ARCHAIC)) {
                 Mounted<?> secondaryWeaponMounted = Mounted.createMounted(infantry, secondaryWeapon);
                 processWeapon(secondaryWeaponMounted, true, true, secondaryShooterCount);
+            }
+
+            // Apply 1.2x multiplier to Anti-Mek BR if unit has Grappler or Climbing Claws (IO p.84)
+            double antiMekMultiplier = infantry.getAntiMekBvMultiplier();
+            if (antiMekMultiplier > 1.0) {
+                double antiMekBV = offensiveValue - preAntiMekBV;
+                double multipliedAntiMekBV = antiMekBV * antiMekMultiplier;
+                double bonus = multipliedAntiMekBV - antiMekBV;
+                offensiveValue += bonus;
+                bvReport.addLine("Anti-Mek x " + formatForReport(antiMekMultiplier) + " (" +
+                            infantry.getBestProstheticAntiMekName() + "):",
+                      formatForReport(antiMekBV) + " x " + formatForReport(antiMekMultiplier),
+                      "= +" + formatForReport(bonus));
             }
         }
 
@@ -209,6 +223,9 @@ public class InfantryBVCalculator extends BVCalculator {
         }
 
         // Note: Prosthetic Glider Wings (MD_PL_GLIDER) have no impact on BV per IO p.85
+        // Note: Prosthetic Powered Flight Wings (MD_PL_FLIGHT) DO affect BV per IO p.85 -
+        // the 2 VTOL MP is accounted for in getJumpMP() which contributes to the defensive
+        // TMM factor via processDefensiveFactor().
 
         bvReport.startTentativeSection();
         bvReport.addLine("Field Guns:", "", "");
