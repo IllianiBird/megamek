@@ -47,6 +47,7 @@ public final class MMConstants extends SuiteConstants {
     public static final String PROJECT_NAME = "MegaMek";
     public static final String MUL_URL_PREFIX = "http://www.masterunitlist.info/Unit/Details/";
     public static final String BT_URL_SHRAPNEL = "https://bg.battletech.com/shrapnel/";
+    public static final String DISCORD_LINK = "https://discord.gg/megamek";
     /**
      * When this text is found in the source field, the Mek View will display a link to {@link #BT_URL_SHRAPNEL}
      */
@@ -124,6 +125,11 @@ public final class MMConstants extends SuiteConstants {
     public static final int TSEMP_EFFECT_NONE = 0;
     public static final int TSEMP_EFFECT_INTERFERENCE = 1;
     public static final int TSEMP_EFFECT_SHUTDOWN = 2;
+
+    // EMP Mine Effect Constants (Tactical Operations: Advanced Rules)
+    public static final int EMP_EFFECT_NONE = 0;
+    public static final int EMP_EFFECT_INTERFERENCE = 1;
+    public static final int EMP_EFFECT_SHUTDOWN = 2;
     // endregion Magic Numbers That Should Be Enums
 
     public static final String CL_KEY_FILE_EXTENSION_BOARD = ".board";

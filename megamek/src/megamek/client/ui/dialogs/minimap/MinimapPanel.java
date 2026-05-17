@@ -435,11 +435,10 @@ public final class MinimapPanel extends JPanel implements IPreferenceChangeListe
     private void initializeDialog() {
         if (dialog != null) {
             if (dialog.getMouseListeners().length == 0) {
-                dialog.addMouseListener(mouseListener);
-                dialog.addMouseMotionListener(mouseMotionListener);
-                dialog.addMouseWheelListener(mouseWheelListener);
-                dialog.addComponentListener(componentListener);
-                dialog.addComponentListener(componentListener);
+                dialog.addMouseListener(minimapMouseListener);
+                dialog.addMouseMotionListener(minimapMouseMotionListener);
+                dialog.addMouseWheelListener(minimapMouseWheelListener);
+                dialog.addComponentListener(minimapComponentListener);
             }
         }
     }
@@ -615,7 +614,7 @@ public final class MinimapPanel extends JPanel implements IPreferenceChangeListe
               + HEX_SIDE_BY_SIN30[zoom] + (2 * margin);
         int requiredHeight = minimized ? BUTTON_HEIGHT
               : (((2 * board.getHeight()) + 1)
-              * HEX_SIDE_BY_COS30[zoom]) + (2 * margin) + buttonHeight;
+                 * HEX_SIDE_BY_COS30[zoom]) + (2 * margin) + buttonHeight;
 
         if (dialog != null) {
             setSize(new Dimension(requiredWidth, requiredHeight));
@@ -924,7 +923,7 @@ public final class MinimapPanel extends JPanel implements IPreferenceChangeListe
         double[] relSize = bv.getVisibleArea();
         for (int i = 0; i < 4; i++) {
             // keep between 0 and 1 to not fall outside the minimap
-            relSize[i] = Math.min(1, Math.max(0, relSize[i]));
+            relSize[i] = Math.clamp(relSize[i], 0, 1);
         }
 
         int x1 = (int) (relSize[0] * (HEX_SIDE[zoom] + HEX_SIDE_BY_SIN30[zoom]) * board.getWidth()) + leftMargin;
@@ -2029,7 +2028,7 @@ public final class MinimapPanel extends JPanel implements IPreferenceChangeListe
         }
     };
 
-    MouseListener mouseListener = new MouseAdapter() {
+    MouseListener minimapMouseListener = new MouseAdapter() {
         @Override
         public void mouseClicked(MouseEvent me) {
             if (me.getButton() == MouseEvent.BUTTON1) {
@@ -2060,7 +2059,7 @@ public final class MinimapPanel extends JPanel implements IPreferenceChangeListe
 
     };
 
-    MouseMotionListener mouseMotionListener = new MouseMotionAdapter() {
+    MouseMotionListener minimapMouseMotionListener = new MouseMotionAdapter() {
 
         @Override
         public void mouseDragged(MouseEvent me) {
@@ -2075,7 +2074,7 @@ public final class MinimapPanel extends JPanel implements IPreferenceChangeListe
         }
     };
 
-    MouseWheelListener mouseWheelListener = new MouseWheelListener() {
+    MouseWheelListener minimapMouseWheelListener = new MouseWheelListener() {
         @Override
         public void mouseWheelMoved(MouseWheelEvent we) {
             Point mapPoint = SwingUtilities.convertPoint(dialog, we.getX(), we.getY(), MinimapPanel.this);
@@ -2089,7 +2088,7 @@ public final class MinimapPanel extends JPanel implements IPreferenceChangeListe
         }
     };
 
-    ComponentListener componentListener = new ComponentAdapter() {
+    ComponentListener minimapComponentListener = new ComponentAdapter() {
         @Override
         public void componentShown(ComponentEvent ce) {
             refreshMap();

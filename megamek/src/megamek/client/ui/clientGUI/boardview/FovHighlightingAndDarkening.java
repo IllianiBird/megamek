@@ -225,10 +225,10 @@ public class FovHighlightingAndDarkening {
                 if (((los != null) && !los.canSee()) || (dist > visualRange)) {
                     if (darken) {
                         if (sensorsOn && (dist > minSensorRange) && (dist <= maxSensorRange)) {
-                            boardView.drawHexLayer(p, boardGraph, transparent_light_gray, false);
+                            boardView.drawHexLayer(boardGraph, transparent_light_gray);
                         } else {
                             // Reverse stripe direction when in spotting mode for visual distinction
-                            boardView.drawHexLayer(p, boardGraph, transparent_gray, true, spottingMode);
+                            boardView.drawHexLayer(boardGraph, transparent_gray, true, spottingMode);
                         }
                     }
                     hasLoS = false;
@@ -239,7 +239,7 @@ public class FovHighlightingAndDarkening {
                         int dt = itR.next();
                         Color ct = itC.next();
                         if (dist <= dt) {
-                            boardView.drawHexLayer(p, boardGraph, ct, false);
+                            boardView.drawHexLayer(boardGraph, ct);
                             break;
                         }
                     }
@@ -248,7 +248,7 @@ public class FovHighlightingAndDarkening {
                 // Max dist should be >= visual dist, this hex can't be seen
                 if (darken) {
                     // Reverse stripe direction when in spotting mode for visual distinction
-                    boardView.drawHexLayer(p, boardGraph, transparent_gray, true, spottingMode);
+                    boardView.drawHexLayer(boardGraph, transparent_gray, true, spottingMode);
                 }
                 hasLoS = false;
             }
@@ -285,7 +285,7 @@ public class FovHighlightingAndDarkening {
      */
     public @Nullable LosEffects getCachedLosEffects(Coords src, Coords dest, int boardId) {
         ArrayList<StepSprite> pathSprites = boardView.pathSprites;
-        StepSprite lastStepSprite = pathSprites.isEmpty() ? null : pathSprites.get(pathSprites.size() - 1);
+        StepSprite lastStepSprite = pathSprites.isEmpty() ? null : pathSprites.getLast();
         // let's check if cache should be cleared
         if ((cachedSelectedEntity != boardView.getSelectedEntity()) ||
               (cachedStepSprite != lastStepSprite) ||

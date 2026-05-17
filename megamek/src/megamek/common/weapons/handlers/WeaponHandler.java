@@ -35,7 +35,6 @@
 package megamek.common.weapons.handlers;
 
 import static java.lang.Math.floor;
-import static megamek.common.equipment.AmmoType.INCENDIARY_MOD;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -569,9 +568,9 @@ public class WeaponHandler implements AttackHandler, Serializable {
               && !(attackingEntity.getSwarmTargetId() == target.getId())) {
             bSalvo = true;
             int toReturn = allShotsHit() ? ((BattleArmor) attackingEntity)
-                  .getShootingStrength()
+                                           .getShootingStrength()
                   : Compute
-                  .missilesHit(((BattleArmor) attackingEntity).getShootingStrength());
+                    .missilesHit(((BattleArmor) attackingEntity).getShootingStrength());
             Report r = new Report(3325);
             r.newlines = 0;
             r.subject = subjectId;
@@ -634,7 +633,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
                         // remove the last reports because they showed the
                         // number of shots that hit
                         while (vPhaseReport.size() > reportSize) {
-                            vPhaseReport.remove(vPhaseReport.size() - 1);
+                            vPhaseReport.removeLast();
                         }
                         hits = 0;
                         for (int i = 0; i < numWeaponsHit; i++) {
@@ -668,7 +667,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
                             // remove the last reports because they showed the
                             // number of shots that hit
                             while (vPhaseReport.size() > reportSize) {
-                                vPhaseReport.remove(vPhaseReport.size() - 1);
+                                vPhaseReport.removeLast();
                             }
                             AMSHits = 0;
                             Report r = new Report(3236);
@@ -702,7 +701,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
                             // remove the last reports because they showed the
                             // number of shots that hit
                             while (vPhaseReport.size() > reportSize) {
-                                vPhaseReport.remove(vPhaseReport.size() - 1);
+                                vPhaseReport.removeLast();
                             }
                             // If you're shooting at a target using single AMS
                             // Too many variables here as far as AMS numbers
@@ -1133,7 +1132,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
             if (bMissed && id != vPhaseReport.size()) {
                 vPhaseReport.get(id - 1).newlines--;
                 vPhaseReport.get(id).indent(2);
-                vPhaseReport.get(vPhaseReport.size() - 1).newlines++;
+                vPhaseReport.getLast().newlines++;
             }
 
             if (!bMissed) {
@@ -1856,7 +1855,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
         subjectId = getAttackerId();
         nRange = Compute.effectiveDistance(this.game, attackingEntity, target);
         if (target instanceof Mek) {
-            throughFront = Compute.isThroughFrontHex(this.game, attackingEntity.getPosition(), (Entity) target);
+            throughFront = Compute.isThroughFrontHex(attackingEntity.getPosition(), (Entity) target);
         } else {
             throughFront = true;
         }
@@ -1915,11 +1914,11 @@ public class WeaponHandler implements AttackHandler, Serializable {
 
             if (!chain.isEmpty()) {
                 chain.sort((m1, m2) -> Integer.compare(m2.getUsableShotsLeft(), m1.getUsableShotsLeft()));
-                weapon.setLinked(chain.get(0));
+                weapon.setLinked(chain.getFirst());
                 for (int i = 0; i < chain.size() - 1; i++) {
                     chain.get(i).setLinked(chain.get(i + 1));
                 }
-                chain.get(chain.size() - 1).setLinked(null);
+                chain.getLast().setLinked(null);
                 if (weapon.getLinked().getUsableShotsLeft() == 0) {
                     weapon.setFired(true);
                 }
@@ -1950,7 +1949,7 @@ public class WeaponHandler implements AttackHandler, Serializable {
                     attackingEntity.setArcFired(loc, rearMount);
                 }
             } else {
-                attackingEntity.heatBuildup += (weapon.getHeatByBay());
+                weaponEntity.heatBuildup += (weapon.getHeatByBay());
             }
         }
     }

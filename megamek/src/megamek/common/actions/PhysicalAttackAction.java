@@ -179,7 +179,7 @@ public class PhysicalAttackAction extends AbstractAttackAction {
         // Infantry squads are also hard to hit -- including for other infantry,
         // it seems (the rule is "all attacks"). However, this only applies to
         // proper squads deployed as such.
-        if (target.isConventionalInfantry() && ((Infantry) target).isSquad()) {
+        if (target instanceof ConvInfantry infantry && infantry.isSquad()) {
             toHit.addModifier(1, "infantry squad target");
         }
 
@@ -187,6 +187,14 @@ public class PhysicalAttackAction extends AbstractAttackAction {
         if (target instanceof MekWarrior) {
             toHit.addModifier(2, "ejected Pilot target");
         }
+
+        // Enhanced Imaging bonus for physical attacks - IO p.69
+        // "All Piloting Skill rolls required for the EI-equipped unit receives a -1
+        // target number modifier. This includes checks made for physical attacks"
+        if (ae.hasActiveEiCockpit()) {
+            toHit.addModifier(-1, Messages.getString("Compute.EnhancedImaging"));
+        }
+
         // attacker movement
         toHit.append(Compute.getAttackerMovementModifier(game, attackerId));
 

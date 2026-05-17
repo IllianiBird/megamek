@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2000-2005 Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2002-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2002-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -39,15 +39,7 @@ import static megamek.common.bays.Bay.UNSET_BAY;
 import java.io.PrintWriter;
 import java.io.Serial;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.Vector;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import megamek.SuiteConstants;
@@ -78,10 +70,6 @@ import megamek.common.preference.PreferenceManager;
 import megamek.common.rolls.PilotingRollData;
 import megamek.common.rolls.Roll;
 import megamek.common.rolls.TargetRoll;
-import megamek.common.weapons.autoCannons.ACWeapon;
-import megamek.common.weapons.autoCannons.LBXACWeapon;
-import megamek.common.weapons.autoCannons.UACWeapon;
-import megamek.common.weapons.gaussRifles.GaussWeapon;
 import megamek.common.weapons.ppc.PPCWeapon;
 import megamek.logging.MMLogger;
 
@@ -164,6 +152,8 @@ public abstract class Mek extends Entity {
     public static final int COCKPIT_SMALL_COMMAND_CONSOLE = 16;
     public static final int COCKPIT_TRIPOD_INDUSTRIAL = 17;
     public static final int COCKPIT_SUPERHEAVY_TRIPOD_INDUSTRIAL = 18;
+
+    private static final String ADV_FCS_MTF = " (Adv. FCS)";
 
     public static final String[] COCKPIT_STRING = { "Standard Cockpit", "Small Cockpit", "Command Console",
                                                     "Torso-Mounted Cockpit", "Dual Cockpit", "Industrial Cockpit",
@@ -285,6 +275,19 @@ public abstract class Mek extends Entity {
     private boolean fullHeadEject = false;
 
     private boolean riscHeatSinkKit = false;
+
+    /**
+     * Tracks locations where the user has explicitly opted out of automatic Clan CASE. Only relevant for Clan and Clan
+     * Mixed units. When a Clan unit's user removes Clan CASE from a location, that location is recorded here so it
+     * won't be auto-added back.
+     */
+    private final Set<Integer> clanCaseOptOutLocations = new HashSet<>();
+
+    /**
+     * Tracks whether the Damage Interrupt Circuit is disabled. DIC is disabled by Life Support critical hit or any hit
+     * rolling "2" on hit location table.
+     */
+    private boolean dicDisabled = false;
 
     protected static int[] EMERGENCY_COOLANT_SYSTEM_FAILURE = { 3, 5, 7, 10, 13, 13, 13 };
 
@@ -701,6 +704,7 @@ public abstract class Mek extends Entity {
      *
      * @return false if the system is damaged.
      */
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean isSystemIntact(int system) {
         for (int loc = 0; loc < locations(); loc++) {
             int numCrits = getNumberOfCriticalSlots(loc);
@@ -765,6 +769,7 @@ public abstract class Mek extends Entity {
     /**
      * does this Mek have working jump boosters?
      */
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean hasJumpBoosters() {
         boolean jumpBoosters = false;
         for (Mounted<?> mEquip : getMisc()) {
@@ -1019,9 +1024,11 @@ public abstract class Mek extends Entity {
                 MPBoosters armed = getArmedMPBoosters();
 
                 str += (mpBoosters.hasMASC() ? " MASC:" + getMASCTurns()
-                      + (armed.hasMASC() ? "(" + getMASCTarget() + "+)" : "(NA)") : "")
+                                               + (armed.hasMASC() ? "(" + getMASCTarget() + "+)" : "(NA)") : "")
                       + (mpBoosters.hasSupercharger() ? " Supercharger:" + getSuperchargerTurns()
-                      + (armed.hasSupercharger() ? "(" + getSuperchargerTarget() + "+)" : "(NA)") : "");
+                                                        + (armed.hasSupercharger() ?
+                                                           "(" + getSuperchargerTarget() + "+)" :
+                                                           "(NA)") : "");
             }
             return str;
         }
@@ -1906,12 +1913,6 @@ public abstract class Mek extends Entity {
     /**
      * Wrapper that handles applying Edge (if allowed).
      *
-     * @param table
-     * @param side
-     * @param aimedLocation
-     * @param aimingMode
-     * @param cover
-     *
      * @return HitData, possibly re-rolled once (once!) with Edge.
      */
     @Override
@@ -1926,7 +1927,6 @@ public abstract class Mek extends Entity {
      *
      * @param originalHit the hit to consider using Edge on.
      *
-     * @return
      */
     public HitData applyEdgeToHitLocation(HitData originalHit, int table, int side, int aimedLocation,
           AimingMode aimingMode,
@@ -1954,16 +1954,15 @@ public abstract class Mek extends Entity {
 
         }
 
-        switch (originalHit.getLocation()) {
-            case LOC_HEAD:
-                if (shouldUseEdge(OptionsConstants.EDGE_WHEN_HEAD_HIT)) {
-                    getCrew().decreaseEdge();
-                    HitData result = innerRollHitLocation(table, side,
-                          aimedLocation, aimingMode, cover);
-                    result.setUndoneLocation(new HitData(Mek.LOC_HEAD));
-                    result.setUsedEdge();
-                    return result;
-                }
+        if (originalHit.getLocation() == LOC_HEAD) {
+            if (shouldUseEdge(OptionsConstants.EDGE_WHEN_HEAD_HIT)) {
+                getCrew().decreaseEdge();
+                HitData result = innerRollHitLocation(table, side,
+                      aimedLocation, aimingMode, cover);
+                result.setUndoneLocation(new HitData(Mek.LOC_HEAD));
+                result.setUsedEdge();
+                return result;
+            }
         }
 
         return originalHit;
@@ -1987,6 +1986,9 @@ public abstract class Mek extends Entity {
         }
 
         boolean playtestLocations = gameOptions().booleanOption(OptionsConstants.PLAYTEST_1);
+        boolean toAdvHitLoc =
+              gameOptions().booleanOption(OptionsConstants.ADVANCED_COMBAT_TAC_OPS_ADVANCED_MEK_HIT_LOCATIONS);
+
 
         if ((table == ToHitData.HIT_NORMAL) || (table == ToHitData.HIT_PARTIAL_COVER)) {
             roll = Compute.d6(2);
@@ -2003,7 +2005,7 @@ public abstract class Mek extends Entity {
                 LOGGER.error("", t);
             }
 
-            if (playtestLocations
+            if (playtestLocations && !toAdvHitLoc
                   && (side == ToHitData.SIDE_LEFT || side == ToHitData.SIDE_RIGHT)
                   && roll != 2 // clarified on forum, TACs don't go to the CT in this case
                 // https://battletech.com/playtest-battletech/feedback-discussion/topic/through-armor-critical-hits-on-side-arc/
@@ -2048,14 +2050,12 @@ public abstract class Mek extends Entity {
                     case 7:
                         return new HitData(Mek.LOC_LEFT_TORSO);
                     case 8:
-                        if (gameOptions().booleanOption(
-                              OptionsConstants.ADVANCED_COMBAT_TAC_OPS_ADVANCED_MEK_HIT_LOCATIONS)) {
+                        if (toAdvHitLoc) {
                             return new HitData(Mek.LOC_CENTER_TORSO, true);
                         }
                         return new HitData(Mek.LOC_CENTER_TORSO);
                     case 9:
-                        if (gameOptions().booleanOption(
-                              OptionsConstants.ADVANCED_COMBAT_TAC_OPS_ADVANCED_MEK_HIT_LOCATIONS)) {
+                        if (toAdvHitLoc) {
                             return new HitData(Mek.LOC_RIGHT_TORSO, true);
                         }
                         return new HitData(Mek.LOC_RIGHT_TORSO);
@@ -2079,14 +2079,12 @@ public abstract class Mek extends Entity {
                     case 7:
                         return new HitData(Mek.LOC_RIGHT_TORSO);
                     case 8:
-                        if (gameOptions().booleanOption(
-                              OptionsConstants.ADVANCED_COMBAT_TAC_OPS_ADVANCED_MEK_HIT_LOCATIONS)) {
+                        if (toAdvHitLoc) {
                             return new HitData(Mek.LOC_CENTER_TORSO, true);
                         }
                         return new HitData(Mek.LOC_CENTER_TORSO);
                     case 9:
-                        if (gameOptions().booleanOption(
-                              OptionsConstants.ADVANCED_COMBAT_TAC_OPS_ADVANCED_MEK_HIT_LOCATIONS)) {
+                        if (toAdvHitLoc) {
                             return new HitData(Mek.LOC_LEFT_TORSO, true);
                         }
                         return new HitData(Mek.LOC_LEFT_TORSO);
@@ -2099,8 +2097,7 @@ public abstract class Mek extends Entity {
                 }
             } else if (side == ToHitData.SIDE_REAR) {
                 // normal rear hits
-                if (gameOptions().booleanOption(
-                      OptionsConstants.ADVANCED_COMBAT_TAC_OPS_ADVANCED_MEK_HIT_LOCATIONS)
+                if (toAdvHitLoc
                       && isProne()) {
                     switch (roll) {
                         case 2:
@@ -2597,9 +2594,59 @@ public abstract class Mek extends Entity {
         }
     }
 
+    /**
+     * Returns true if this Mek has any Clan CASE equipment mounted.
+     */
+    public boolean hasClanCaseEquipped() {
+        return getMisc().stream()
+              .anyMatch(m -> m.getType().is(EquipmentTypeLookup.CLAN_CASE));
+    }
+
+    /**
+     * Returns true if the given location has been opted out of automatic Clan CASE.
+     */
+    public boolean isClanCaseOptedOut(int location) {
+        return clanCaseOptOutLocations.contains(location);
+    }
+
+    /**
+     * Opts out of automatic Clan CASE for the given location.
+     */
+    public void addClanCaseOptOut(int location) {
+        clanCaseOptOutLocations.add(location);
+    }
+
+    /**
+     * Removes the Clan CASE opt-out for the given location.
+     */
+    public void removeClanCaseOptOut(int location) {
+        clanCaseOptOutLocations.remove(location);
+    }
+
+    /**
+     * Clears all Clan CASE opt-out locations.
+     */
+    public void clearClanCaseOptOut() {
+        clanCaseOptOutLocations.clear();
+    }
+
+    /**
+     * Returns true if any location is opted out of automatic Clan CASE.
+     */
+    public boolean hasAnyClanCaseOptOut() {
+        return !clanCaseOptOutLocations.isEmpty();
+    }
+
+    /**
+     * Returns an unmodifiable view of the set of locations opted out of automatic Clan CASE.
+     */
+    public Set<Integer> getClanCaseOptOutLocations() {
+        return Collections.unmodifiableSet(clanCaseOptOutLocations);
+    }
+
     @Override
     public void addClanCase() {
-        if (!isClan()) {
+        if (!isClan() && !hasClanCaseEquipped()) {
             return;
         }
         boolean explosiveFound;
@@ -2607,6 +2654,10 @@ public abstract class Mek extends Entity {
         for (int i = 0; i < locations(); i++) {
             // Skip location if it already contains CASE
             if (locationHasCase(i) || hasCASEII(i)) {
+                continue;
+            }
+            // Skip location if user has opted out of auto Clan CASE
+            if (isClanCaseOptedOut(i)) {
                 continue;
             }
 
@@ -2696,16 +2747,9 @@ public abstract class Mek extends Entity {
         if (isSuperHeavy()) {
             reqSlots = (int) Math.ceil(((double) reqSlots / 2.0f));
         }
-        // gauss and AC weapons on omni arms means no arm actuators, so we
-        // remove them
-        if (isOmni()
-              && (this instanceof BipedMek)
-              && ((loc == LOC_LEFT_ARM) || (loc == LOC_RIGHT_ARM))
-              && ((mounted.getType() instanceof GaussWeapon)
-              || (mounted.getType() instanceof ACWeapon)
-              || (mounted.getType() instanceof UACWeapon)
-              || (mounted.getType() instanceof LBXACWeapon) || (mounted
-              .getType() instanceof PPCWeapon))) {
+
+        // various weapons on omni arms forbid lower arm+hand actuators, so remove them, TM p.57
+        if (isOmni() && isArm(loc) && MekConstructionUtil.removesHandAndLowerArmSlotsOnOmni(mounted.getType())) {
             if (hasSystem(Mek.ACTUATOR_LOWER_ARM, loc)) {
                 setCritical(loc, 2, null);
             }
@@ -3248,7 +3292,7 @@ public abstract class Mek extends Entity {
 
     @Override
     public int implicitClanCASE() {
-        if (!isClan()) {
+        if (!isClan() && !hasClanCaseEquipped()) {
             return 0;
         }
         int explicit = 0;
@@ -3257,9 +3301,13 @@ public abstract class Mek extends Entity {
             if ((m.getType() instanceof MiscType) && (m.getType().hasFlag(MiscType.F_CASE))) {
                 explicit++;
             } else if (m.getType().isExplosive(m)) {
-                caseLocations.add(m.getLocation());
-                if (m.getSecondLocation() >= 0) {
-                    caseLocations.add(m.getSecondLocation());
+                int loc = m.getLocation();
+                if (loc >= 0 && !isClanCaseOptedOut(loc)) {
+                    caseLocations.add(loc);
+                }
+                int secLoc = m.getSecondLocation();
+                if (secLoc >= 0 && !isClanCaseOptedOut(secLoc)) {
+                    caseLocations.add(secLoc);
                 }
             }
         }
@@ -3363,19 +3411,23 @@ public abstract class Mek extends Entity {
         // Prototype DNI gives -3 piloting (IO pg 83)
         // VDNI gives -1 piloting (IO pg 71) - BVDNI does NOT get piloting bonus due to "neuro-lag"
         // Check Proto DNI first as it's more powerful
-        if (hasAbility(OptionsConstants.MD_PROTO_DNI)) {
-            roll.addModifier(-3, Messages.getString("PilotingRoll.ProtoDni"));
-        } else if (hasAbility(OptionsConstants.MD_VDNI)
-              && !hasAbility(OptionsConstants.MD_BVDNI)) {
-            roll.addModifier(-1, "VDNI");
-        } else if (hasAbility(OptionsConstants.MD_BVDNI)) {
-            roll.addModifier(0, "BVDNI (no piloting bonus)");
+        // When tracking neural interface hardware, require DNI cockpit mod for benefits
+        if (hasActiveDNI()) {
+            if (hasAbility(OptionsConstants.MD_PROTO_DNI)) {
+                roll.addModifier(-3, Messages.getString("PilotingRoll.ProtoDni"));
+            } else if (hasAbility(OptionsConstants.MD_VDNI)
+                  && !hasAbility(OptionsConstants.MD_BVDNI)) {
+                roll.addModifier(-1, "VDNI");
+            } else if (hasAbility(OptionsConstants.MD_BVDNI)) {
+                roll.addModifier(0, "BVDNI (no piloting bonus)");
+            }
         }
 
         // Small/torso-mounted cockpit penalty?
         // BVDNI negates small cockpit penalty, but Proto DNI does not
+        // Requires active DNI when tracking neural interface hardware
         if ((getCockpitType() == Mek.COCKPIT_SMALL) || (getCockpitType() == Mek.COCKPIT_SMALL_COMMAND_CONSOLE)) {
-            if (hasAbility(OptionsConstants.MD_BVDNI)) {
+            if (hasActiveDNI() && hasAbility(OptionsConstants.MD_BVDNI)) {
                 roll.addModifier(0, "Small Cockpit (negated by BVDNI)");
             } else if (!hasAbility(OptionsConstants.UNOFFICIAL_SMALL_PILOT)) {
                 roll.addModifier(1, "Small Cockpit");
@@ -3419,16 +3471,17 @@ public abstract class Mek extends Entity {
             roll.addModifier(1, "Industrial TSM");
         }
 
+        // Damage Interrupt Circuit (IO p.39) adds +1 to all PSR when disabled
+        if ((hasDamageInterruptCircuit()) && (isDICDisabled())) {
+            roll.addModifier(1, "Damage Interrupt Circuit disabled");
+        }
+
         return roll;
     }
 
     @Override
     public int getMaxElevationChange() {
-        if (movementMode == EntityMovementMode.TRACKED
-              || movementMode == EntityMovementMode.WIGE) {
-            return 1;
-        }
-        return 2;
+        return (movementMode.isTracked() || movementMode.isWiGE()) ? 1 : 2;
     }
 
     @Override
@@ -3951,11 +4004,6 @@ public abstract class Mek extends Entity {
     }
 
     @Override
-    public boolean hasEiCockpit() {
-        return isClan() || super.hasEiCockpit();
-    }
-
-    @Override
     public boolean hasActiveEiCockpit() {
         if (cockpitStatus == COCKPIT_OFF) {
             return false;
@@ -3967,10 +4015,12 @@ public abstract class Mek extends Entity {
         return super.hasActiveEiCockpit();
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public int getCockpitStatus() {
         return cockpitStatus;
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public int getCockpitStatusNextRound() {
         return cockpitStatusNextRound;
     }
@@ -4008,15 +4058,15 @@ public abstract class Mek extends Entity {
         if (industrial) {
             switch (cockpitType) {
                 case COCKPIT_STANDARD:
-                    return Mek.getCockpitTypeString(COCKPIT_INDUSTRIAL) + " (Adv. FCS)";
+                    return Mek.getCockpitTypeString(COCKPIT_INDUSTRIAL) + ADV_FCS_MTF;
                 case COCKPIT_PRIMITIVE:
-                    return Mek.getCockpitTypeString(COCKPIT_PRIMITIVE_INDUSTRIAL) + " (Adv. FCS)";
+                    return Mek.getCockpitTypeString(COCKPIT_PRIMITIVE_INDUSTRIAL) + ADV_FCS_MTF;
                 case COCKPIT_SUPERHEAVY:
-                    return Mek.getCockpitTypeString(COCKPIT_SUPERHEAVY_INDUSTRIAL) + " (Adv. FCS)";
+                    return Mek.getCockpitTypeString(COCKPIT_SUPERHEAVY_INDUSTRIAL) + ADV_FCS_MTF;
                 case COCKPIT_TRIPOD:
-                    return Mek.getCockpitTypeString(COCKPIT_TRIPOD_INDUSTRIAL) + " (Adv. FCS)";
+                    return Mek.getCockpitTypeString(COCKPIT_TRIPOD_INDUSTRIAL) + ADV_FCS_MTF;
                 case COCKPIT_SUPERHEAVY_TRIPOD:
-                    return Mek.getCockpitTypeString(COCKPIT_SUPERHEAVY_TRIPOD_INDUSTRIAL) + " (Adv. FCS)";
+                    return Mek.getCockpitTypeString(COCKPIT_SUPERHEAVY_TRIPOD_INDUSTRIAL) + ADV_FCS_MTF;
             }
         }
         return Mek.getCockpitTypeString(cockpitType);
@@ -4065,8 +4115,13 @@ public abstract class Mek extends Entity {
             return COCKPIT_UNKNOWN;
         }
         for (int x = 0; x < COCKPIT_STRING.length; x++) {
-            if ((inType.equals(COCKPIT_STRING[x]))
-                  || (inType.equals(COCKPIT_SHORT_STRING[x]))) {
+            if ((inType.equals(COCKPIT_STRING[x])) || (inType.equals(COCKPIT_SHORT_STRING[x]))) {
+                return x;
+            }
+        }
+        for (int x = 0; x < COCKPIT_STRING.length; x++) {
+            // "(Adv. FCS)" may be appended for industrial meks
+            if ((inType.startsWith(COCKPIT_STRING[x])) || (inType.startsWith(COCKPIT_SHORT_STRING[x]))) {
                 return x;
             }
         }
@@ -4271,16 +4326,14 @@ public abstract class Mek extends Entity {
         sb.append(newLine);
 
         sb.append("Config:");
-        if (this instanceof LandAirMek) {
-            sb.append("LAM");
-        } else if (this instanceof BipedMek) {
-            sb.append("Biped");
-        } else if (this instanceof QuadVee) {
-            sb.append("QuadVee");
-        } else if (this instanceof QuadMek) {
-            sb.append("Quad");
-        } else if (this instanceof TripodMek) {
-            sb.append("Tripod");
+        switch (this) {
+            case LandAirMek ignored -> sb.append("LAM");
+            case BipedMek ignored -> sb.append("Biped");
+            case QuadVee ignored -> sb.append("QuadVee");
+            case QuadMek ignored -> sb.append("Quad");
+            case TripodMek ignored -> sb.append("Tripod");
+            default -> {
+            }
         }
 
         if (isOmni()) {
@@ -4300,14 +4353,24 @@ public abstract class Mek extends Entity {
         }
         sb.append(newLine);
         sb.append(MtfFile.ERA).append(year).append(newLine);
+        if (hasOriginalBuildYear()) {
+            sb.append(MtfFile.ORIGINAL_ERA).append(getOriginalBuildYear()).append(newLine);
+        }
         if ((source != null) && !source.isBlank()) {
             sb.append(MtfFile.SOURCE).append(source).append(newLine);
+        }
+        if ((published != null) && !published.isBlank()) {
+            sb.append(MtfFile.PUBLISHED).append(published).append(newLine);
         }
         sb.append(MtfFile.RULES_LEVEL).append(
               TechConstants.T_SIMPLE_LEVEL[techLevel]);
         sb.append(newLine);
         if (hasRole()) {
             sb.append(MtfFile.ROLE).append(getRole().toString());
+            sb.append(newLine);
+        }
+        if (techFaction != null && techFaction != Faction.NONE) {
+            sb.append(MtfFile.FACTION).append(techFaction.getCode());
             sb.append(newLine);
         }
         sb.append(newLine);
@@ -4397,6 +4460,14 @@ public abstract class Mek extends Entity {
             sb.append(Mek.RISC_HEAT_SINK_OVERRIDE_KIT);
             sb.append(newLine);
         }
+        if (hasAnyClanCaseOptOut()) {
+            sb.append(MtfFile.CLAN_CASE_OPT_OUT);
+            sb.append(clanCaseOptOutLocations.stream()
+                  .sorted()
+                  .map(this::getLocationAbbr)
+                  .collect(Collectors.joining(",")));
+            sb.append(newLine);
+        }
         sb.append(newLine);
 
         sb.append(MtfFile.HEAT_SINKS).append(heatSinks()).append(" ");
@@ -4430,7 +4501,7 @@ public abstract class Mek extends Entity {
         }
         for (Mounted<?> mounted : getMisc()) {
             if ((mounted.getNumCriticalSlots() == 0)
-                  && !mounted.getType().hasFlag(MiscType.F_CASE)
+                  && !(isClan() && mounted.getType().hasFlag(MiscType.F_CASE))
                   && !EquipmentType.isArmorType(mounted.getType())
                   && !EquipmentType.isStructureType(mounted.getType())) {
                 sb.append(MtfFile.NO_CRIT).append(mounted.getType().getInternalName())
@@ -4498,11 +4569,13 @@ public abstract class Mek extends Entity {
             sb.append(MtfFile.OVERVIEW);
             sb.append(getFluff().getOverview());
             sb.append(newLine);
+            sb.append(newLine);
         }
 
         if (!getFluff().getCapabilities().isBlank()) {
             sb.append(MtfFile.CAPABILITIES);
             sb.append(getFluff().getCapabilities());
+            sb.append(newLine);
             sb.append(newLine);
         }
 
@@ -4510,11 +4583,13 @@ public abstract class Mek extends Entity {
             sb.append(MtfFile.DEPLOYMENT);
             sb.append(getFluff().getDeployment());
             sb.append(newLine);
+            sb.append(newLine);
         }
 
         if (!getFluff().getHistory().isBlank()) {
             sb.append(MtfFile.HISTORY);
             sb.append(getFluff().getHistory());
+            sb.append(newLine);
             sb.append(newLine);
         }
 
@@ -4522,17 +4597,27 @@ public abstract class Mek extends Entity {
             sb.append(MtfFile.MANUFACTURER);
             sb.append(getFluff().getManufacturer());
             sb.append(newLine);
+            sb.append(newLine);
         }
 
         if (!getFluff().getPrimaryFactory().isBlank()) {
             sb.append(MtfFile.PRIMARY_FACTORY);
             sb.append(getFluff().getPrimaryFactory());
             sb.append(newLine);
+            sb.append(newLine);
         }
 
         if (!getFluff().getNotes().isBlank()) {
             sb.append(MtfFile.NOTES);
             sb.append(getFluff().getNotes());
+            sb.append(newLine);
+            sb.append(newLine);
+        }
+
+        if (!getFluff().getFluffDate().isBlank()) {
+            sb.append(MtfFile.FLUFF_DATE);
+            sb.append(getFluff().getFluffDate());
+            sb.append(newLine);
             sb.append(newLine);
         }
 
@@ -4863,8 +4948,17 @@ public abstract class Mek extends Entity {
         if ((getEmptyCriticalSlots(LOC_LEFT_TORSO) < 1) || (getEmptyCriticalSlots(LOC_RIGHT_TORSO) < 1) || !success) {
             success = false;
         } else {
-            addCritical(LOC_LEFT_TORSO, 0, new CriticalSlot(CriticalSlot.TYPE_SYSTEM, SYSTEM_LIFE_SUPPORT));
-            addCritical(LOC_RIGHT_TORSO, 0, new CriticalSlot(CriticalSlot.TYPE_SYSTEM, SYSTEM_LIFE_SUPPORT));
+            // Life Support must be at slot 0 in each side torso. If engine crits
+            // were placed first (e.g. XL engine at slots 0-2), shift them down by 1
+            // to make room. Using addCritical would silently skip the occupied slot.
+            for (int loc : new int[] { LOC_LEFT_TORSO, LOC_RIGHT_TORSO }) {
+                if (getCritical(loc, 0) != null) {
+                    for (int i = getNumberOfCriticalSlots(loc) - 2; i >= 0; i--) {
+                        setCritical(loc, i + 1, getCritical(loc, i));
+                    }
+                }
+                setCritical(loc, 0, new CriticalSlot(CriticalSlot.TYPE_SYSTEM, SYSTEM_LIFE_SUPPORT));
+            }
         }
 
         if (success) {
@@ -4944,6 +5038,20 @@ public abstract class Mek extends Entity {
               && getCrew().hasActiveCommandConsole()
               && getWeightClass() >= EntityWeightClass.WEIGHT_HEAVY
               && (!isIndustrial() || hasWorkingMisc(MiscType.F_ADVANCED_FIRE_CONTROL));
+    }
+
+    @Override
+    public boolean hasGhostTargetEquipment() {
+        // Mek Cockpit Command Console (cockpit type, not misc equipment).
+        // Simpler check than hasCommandConsoleBonus() which is designed for initiative
+        // and has phase-dependent conditions that don't apply to ghost targets.
+        boolean isCCC = (getCockpitType() == COCKPIT_COMMAND_CONSOLE)
+              || (getCockpitType() == COCKPIT_SUPERHEAVY_COMMAND_CONSOLE)
+              || (getCockpitType() == COCKPIT_SMALL_COMMAND_CONSOLE);
+        if (isCCC && !getCrew().isDead() && !getCrew().isUnconscious()) {
+            return true;
+        }
+        return super.hasGhostTargetEquipment();
     }
 
     /**
@@ -5276,11 +5384,6 @@ public abstract class Mek extends Entity {
     }
 
     @Override
-    public boolean isNuclearHardened() {
-        return true;
-    }
-
-    @Override
     public void destroyLocation(int loc) {
         destroyLocation(loc, false);
     }
@@ -5559,7 +5662,7 @@ public abstract class Mek extends Entity {
     }
 
     /**
-     * Is the passed in location an arm?
+     * @return True if the given location is an arm; always returns false for QuadMeks
      */
     public boolean isArm(int loc) {
         return (loc == Mek.LOC_LEFT_ARM) || (loc == Mek.LOC_RIGHT_ARM);
@@ -5631,6 +5734,43 @@ public abstract class Mek extends Entity {
 
     public boolean hasRiscHeatSinkOverrideKit() {
         return riscHeatSinkKit;
+    }
+
+    /**
+     * Returns true if this Mek has the Damage Interrupt Circuit cockpit modification installed.
+     *
+     * @return true if DIC is installed
+     */
+    public boolean hasDamageInterruptCircuit() {
+        return hasWorkingMisc(MiscType.F_DAMAGE_INTERRUPT_CIRCUIT);
+    }
+
+    /**
+     * Returns true if the Damage Interrupt Circuit is currently disabled. DIC is disabled by Life Support critical hit
+     * or any hit rolling "2" on hit location table.
+     *
+     * @return true if DIC is disabled
+     */
+    public boolean isDICDisabled() {
+        return dicDisabled;
+    }
+
+    /**
+     * Sets the disabled state of the Damage Interrupt Circuit.
+     *
+     * @param disabled true to disable the DIC
+     */
+    public void setDICDisabled(boolean disabled) {
+        this.dicDisabled = disabled;
+    }
+
+    /**
+     * Returns true if this Mek has a working (installed and not disabled) Damage Interrupt Circuit.
+     *
+     * @return true if DIC is installed and functional
+     */
+    public boolean hasWorkingDIC() {
+        return hasDamageInterruptCircuit() && !isDICDisabled();
     }
 
     public abstract boolean hasMPReducingHardenedArmor();
@@ -5862,7 +6002,7 @@ public abstract class Mek extends Entity {
 
         }
 
-        if ((getEngineHits() == 1) && (getGyroHits() == 1)) {
+        if ((getEngineHits() >= 1) && (getGyroHits() >= 1)) {
             LOGGER.debug("{} CRIPPLED: Engine + Gyro hit.", getDisplayName());
             return true;
         }

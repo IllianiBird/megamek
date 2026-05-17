@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2024-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -78,6 +78,9 @@ public record TWPhasePreparationManager(TWGameManager gameManager) {
                 gameManager.sendTagInfoReset();
                 gameManager.clearReports();
                 gameManager.resetEntityRound();
+                // Set clearingWoods flag on entities that declared clearing last round
+                // (for firing penalty this round). Must be set before firing phase.
+                gameManager.applyClearingWoodsFlags();
                 gameManager.resetEntityPhase(phase);
                 gameManager.checkForObservers();
                 gameManager.transmitAllPlayerUpdates();
@@ -155,6 +158,8 @@ public record TWPhasePreparationManager(TWGameManager gameManager) {
             case PHYSICAL:
             case TARGETING:
             case OFFBOARD:
+            case PREEND_DECLARATIONS:
+            case INFANTRY_VS_INFANTRY_COMBAT:
                 gameManager.deployOffBoardEntities();
 
                 // Check for activating hidden units
@@ -189,8 +194,10 @@ public record TWPhasePreparationManager(TWGameManager gameManager) {
                 gameManager.addReport(gameManager.checkForTraitors());
                 // write End Phase header
                 gameManager.addReport(new Report(5005, Report.PUBLIC));
+                gameManager.reportGhostTargetModeChanges();
                 gameManager.addReport(gameManager.resolveInternalBombHits());
                 gameManager.checkLayExplosives();
+                gameManager.resolveInfantryActions();
                 gameManager.resolveHarJelRepairs();
                 gameManager.resolveEmergencyCoolantSystem();
                 gameManager.checkForSuffocation();
@@ -246,6 +253,8 @@ public record TWPhasePreparationManager(TWGameManager gameManager) {
                 break;
             case VICTORY:
                 gameManager.resetPlayersDone();
+                //finalize all ammo dumps now so they don't carry back into MHQ and get acted out in the next scenario
+                gameManager.resolveAmmoDumps();
                 gameManager.clearReports();
                 gameManager.send(gameManager.createAllReportsPacket());
                 gameManager.prepareVictoryReport();

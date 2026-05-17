@@ -137,6 +137,8 @@ class MovePathHandler extends AbstractTWRuleHandler {
     private boolean continueTurnFromFishtail = false;
     private boolean continueTurnFromLevelDrop = false;
     private boolean continueTurnFromCliffAscent = false;
+    // Track if we already sent a special report popup for EMP mines during this move
+    private boolean sentEMPPopupThisMove = false;
 
     // get a list of coordinates that the unit passed through this turn
     // so that I can later recover potential bombing targets
@@ -472,9 +474,9 @@ class MovePathHandler extends AbstractTWRuleHandler {
         entity.mpUsed = mpUsed;
         if (md.isAllUnderwater(getGame())) {
             entity.underwaterRounds++;
-            if ((entity instanceof Infantry) && (((Infantry) entity).getMount() != null)
+            if ((entity instanceof ConvInfantry infantry) && (infantry.getMount() != null)
                   && entity.getMovementMode().isSubmarine()
-                  && entity.underwaterRounds > ((Infantry) entity).getMount().getUWEndurance()) {
+                  && entity.underwaterRounds > infantry.getMount().getUWEndurance()) {
                 report = new Report(2412);
                 report.addDesc(entity);
                 addReport(report);
@@ -1101,7 +1103,8 @@ class MovePathHandler extends AbstractTWRuleHandler {
             gameManager.send(gameManager.getPacketHelper().createTurnListPacket());
 
             // let everyone know about what just happened
-            if (gameManager.getMainPhaseReport().size() > 1) {
+            // Skip if we already sent an EMP popup this move (avoid duplicate popups)
+            if ((gameManager.getMainPhaseReport().size() > 1) && !sentEMPPopupThisMove) {
                 gameManager.send(entity.getOwner().getId(), gameManager.createSpecialReportPacket());
             }
         } else {
@@ -1140,7 +1143,10 @@ class MovePathHandler extends AbstractTWRuleHandler {
                         report.addDesc(entity);
                         report.subject = entity.getId();
                         addReport(report);
-                        addReport(gameManager.crashVTOLorWiGE((Tank) entity));
+
+                        if (entity instanceof Tank tankEntity) {
+                            addReport(gameManager.crashVTOLorWiGE(tankEntity));
+                        }
                     } else {
                         entity.setElevation(0);
                     }
@@ -1819,21 +1825,17 @@ class MovePathHandler extends AbstractTWRuleHandler {
                                 if (ce.equals(a)) {
                                     continue;
                                 }
-                                if (ce instanceof SpaceStation) {
-                                    potentialSpaceStation.addElement(id);
-                                } else if (ce instanceof Warship) {
-                                    potentialWarShip.addElement(id);
-                                } else if (ce instanceof Jumpship) {
-                                    potentialJumpShip.addElement(id);
-                                } else if (ce instanceof Dropship) {
-                                    potentialDropShip.addElement(id);
-                                } else if (ce instanceof SmallCraft) {
-                                    potentialSmallCraft.addElement(id);
-                                } else {
-                                    // ASF can actually include anything,
-                                    // because we might
-                                    // have combat dropping troops
-                                    potentialASF.addElement(id);
+                                switch (ce) {
+                                    case SpaceStation ignored -> potentialSpaceStation.addElement(id);
+                                    case Warship ignored -> potentialWarShip.addElement(id);
+                                    case Jumpship ignored -> potentialJumpShip.addElement(id);
+                                    case Dropship ignored -> potentialDropShip.addElement(id);
+                                    case SmallCraft ignored -> potentialSmallCraft.addElement(id);
+                                    case null, default ->
+                                        // ASF can actually include anything,
+                                        // because we might
+                                        // have combat dropping troops
+                                          potentialASF.addElement(id);
                                 }
                             }
 
@@ -2144,8 +2146,8 @@ class MovePathHandler extends AbstractTWRuleHandler {
             if (cachedGravityLimit < 0) {
                 cachedGravityLimit = EntityMovementType.MOVE_JUMP == moveType
                       ? (step.isUsingMekJumpBooster()
-                      ? entity.getMechanicalJumpBoosterMP(MPCalculationSetting.NO_GRAVITY)
-                      : entity.getJumpMP(MPCalculationSetting.NO_GRAVITY))
+                         ? entity.getMechanicalJumpBoosterMP(MPCalculationSetting.NO_GRAVITY)
+                         : entity.getJumpMP(MPCalculationSetting.NO_GRAVITY))
                       : entity.getRunningGravityLimit();
             }
             // check for charge
@@ -2525,7 +2527,7 @@ class MovePathHandler extends AbstractTWRuleHandler {
             }
 
             // Check for infantry gliding down terrain with glider wings (IO p.85)
-            if (!lastPos.equals(curPos) && (entity instanceof Infantry infantry)
+            if (!lastPos.equals(curPos) && (entity instanceof ConvInfantry infantry)
                   && infantry.hasAbility(OptionsConstants.MD_PL_GLIDER)
                   && infantry.canUseGliderWings()) {
                 int glideDistance = (lastElevation + getGame().getBoard(curBoardId).getHex(lastPos).getLevel())
@@ -2750,7 +2752,7 @@ class MovePathHandler extends AbstractTWRuleHandler {
                       .stream().filter(Mounted::isReady)
                       .collect(Collectors.toList());
                 if (!chaffDispensers.isEmpty()) {
-                    chaffDispensers.get(0).setFired(true);
+                    chaffDispensers.getFirst().setFired(true);
                     gameManager.createSmoke(curPos, getGame().getBoard(step.getBoardId()),
                           SmokeCloud.SMOKE_CHAFF_LIGHT, 1);
                     Hex hex = getGame().getBoard(curBoardId).getHex(curPos);
@@ -2901,6 +2903,18 @@ class MovePathHandler extends AbstractTWRuleHandler {
                 if (isOnGround) {
                     boom = gameManager.checkVibraBombs(entity, curPos, false, lastPos, curPos,
                           gameManager.getMainPhaseReport());
+                    // Collect EMP reports separately for popup, then add to main report
+                    Vector<Report> empReports = new Vector<>();
+                    boolean empBoom = gameManager.checkEMPMines(entity, curPos, empReports);
+                    // Send popup FIRST with only EMP reports, before adding to mainPhaseReport
+                    if (empBoom && !empReports.isEmpty()) {
+                        gameManager.send(entity.getOwner().getId(),
+                              gameManager.createSpecialReportPacket(empReports));
+                        sentEMPPopupThisMove = true;
+                    }
+                    // Now add to main phase report for end-of-phase display
+                    gameManager.getMainPhaseReport().addAll(empReports);
+                    boom = empBoom || boom;
                 }
                 if (getGame().containsMinefield(curPos)) {
                     // set the new position temporarily, because
@@ -3232,7 +3246,7 @@ class MovePathHandler extends AbstractTWRuleHandler {
                 // if we're not supplied a specific location, then the assumption is we only have one piece of cargo,
                 // and we're going to just drop that one
                 if (cargoLocation == null) {
-                    cargo = entity.getDistinctCarriedObjects().get(0);
+                    cargo = entity.getDistinctCarriedObjects().getFirst();
                 } else if (entity.getCarriedObject(cargoLocation) != null) {
                     cargo = entity.getCarriedObject(cargoLocation);
                 } else if ((cargoLocation >= 0) && (Integer.MAX_VALUE - cargoLocation < entity.getTransports()
@@ -3279,7 +3293,7 @@ class MovePathHandler extends AbstractTWRuleHandler {
                     // list.
                     if (cargo instanceof GroundObject) {
                         gameManager.sendGroundObjectUpdate();
-                    } else if (cargo instanceof Entity carriedEntity) {
+                    } else if (cargo instanceof Entity) {
                         gameManager.send(gameManager.getPacketHelper().createTurnListPacket());
                     }
                 }

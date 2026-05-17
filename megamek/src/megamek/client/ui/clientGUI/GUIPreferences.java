@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2005 Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2005-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2005-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -147,6 +147,8 @@ public class GUIPreferences extends PreferenceStoreProxy {
     public static final String TRACE_OVERLAY_ORIGIN_X = "TraceOverlayOriginX";
     public static final String TRACE_OVERLAY_ORIGIN_Y = "TraceOverlayOriginY";
     public static final String TRACE_OVERLAY_IMAGE_FILE = "TraceOverlayImageFile";
+
+    public static final String TOAST_DRIP_SECONDS = "ToastDripSeconds";
 
     public static final String PLAYERS_REMAINING_TO_SHOW = "PlayersRemainingToShow";
     public static final String BUTTONS_PER_ROW = "ButtonsPerRow";
@@ -423,6 +425,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
     public static final String BOARD_EDIT_LOAD_SIZE_HEIGHT = "BoardEditLoadSizeHeight";
     public static final String BOARD_EDIT_LOAD_SIZE_WIDTH = "BoardEditLoadSizeWidth";
     public static final String BOARD_EDIT_RANDOM_DIALOG_START = "BoardEditRandomDialogStart";
+    public static final String BOARD_SAVE_INCLUDE_LICENSE = "BoardSaveIncludeLicense";
     public static final String ALLY_UNIT_COLOR = "AllyUnitColor";
     public static final String MY_UNIT_COLOR = "MyUnitColor";
     public static final String ENEMY_UNIT_COLOR = "EnemyUnitColor";
@@ -430,6 +433,9 @@ public class GUIPreferences extends PreferenceStoreProxy {
     public static final String SHOW_PLANETARY_CONDITIONS_OVERLAY = "ShowPlanetaryConditionsOverlay";
     public static final String SHOW_TRACE_OVERLAY = "ShowTraceOverlay";
     public static final String UNIT_LABEL_STYLE = "UnitLabelStyle";
+    public static final String RULER_DIAGRAM_VISIBLE = "RulerDiagramVisible";
+    public static final String RULER_COMPARE_VISIBLE = "RulerCompareVisible";
+
     public static final String AS_CARD_FONT = "AsCardFont";
     public static final String AS_CARD_SIZE = "AsCardSize";
     public static final String SBF_SHEET_HEADER_FONT = "SBFSheetHeaderFont";
@@ -471,6 +477,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
     private static final Color DEFAULT_RED = new Color(225, 51, 51);
     private static final Color DEFAULT_GREEN = new Color(0, 212, 0);
     private static final Color DEFAULT_BLUE = new Color(64, 96, 228);
+    private static final Color DEFAULT_GOLD = new Color(200, 160, 30);
     private static final Color DEFAULT_MEDIUM_DARK_RED = new Color(150, 80, 80); // medium dark red
     private static final Color DEFAULT_MEDIUM_YELLOW = new Color(180, 180, 100);
     private static final Color DEFAULT_ORANGE = new Color(248, 140, 0);
@@ -519,6 +526,8 @@ public class GUIPreferences extends PreferenceStoreProxy {
               .getPreferenceStore("GUIPreferences", getClass().getName(), "megamek.client.ui.swing.GUIPreferences");
 
         store.setDefault(BOARD_EDIT_RANDOM_DIALOG_START, false);
+        store.setDefault(BOARD_SAVE_INCLUDE_LICENSE, true);
+        store.setDefault(RULER_DIAGRAM_VISIBLE, true);
         setDefault(ADVANCED_NO_SAVE_NAG, false);
         store.setDefault(ADVANCED_SAVE_LOBBY_ON_START, false);
         store.setDefault(ADVANCED_MOVE_STEP_DELAY, 50);
@@ -547,6 +556,8 @@ public class GUIPreferences extends PreferenceStoreProxy {
         setDefault(TRACE_OVERLAY_ORIGIN_X, 0);
         setDefault(TRACE_OVERLAY_ORIGIN_Y, 0);
         setDefault(TRACE_OVERLAY_IMAGE_FILE, "");
+
+        setDefault(TOAST_DRIP_SECONDS, 2);
 
         setDefault(WARNING_COLOR, DEFAULT_RED);
         setDefault(CAUTION_COLOR, Color.yellow);
@@ -588,7 +599,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         setDefault(BOARD_MOVE_SPRINT_COLOR, DEFAULT_PINK);
         setDefault(BOARD_FIRE_SOLUTION_CAN_SEE_COLOR, DEFAULT_CYAN);
         setDefault(BOARD_FIRE_SOLUTION_NO_SEE_COLOR, DEFAULT_RED);
-        setDefault(BOARD_BUILDING_TEXT_COLOR, DEFAULT_BLUE);
+        setDefault(BOARD_BUILDING_TEXT_COLOR, DEFAULT_GOLD);
         setDefault(BOARD_LOW_FOLIAGE_COLOR, DEFAULT_MAP_BRIGHT_GREEN);
         setDefault(BOARD_TEXT_COLOR, DEFAULT_BLACK);
         setDefault(BOARD_SPACE_TEXT_COLOR, DEFAULT_LIGHT_GRAY);
@@ -832,10 +843,10 @@ public class GUIPreferences extends PreferenceStoreProxy {
 
         setDefault(RULER_COLOR_1, DEFAULT_CYAN);
         setDefault(RULER_COLOR_2, DEFAULT_MAGENTA);
-        store.setDefault(RULER_POS_X, 0);
-        store.setDefault(RULER_POS_Y, 0);
-        store.setDefault(RULER_SIZE_HEIGHT, 300);
-        store.setDefault(RULER_SIZE_WIDTH, 500);
+        store.setDefault(RULER_POS_X, -1);
+        store.setDefault(RULER_POS_Y, -1);
+        store.setDefault(RULER_SIZE_HEIGHT, 350);
+        store.setDefault(RULER_SIZE_WIDTH, 600);
 
         store.setDefault(SCROLL_SENSITIVITY, 3);
         store.setDefault(SHOW_FIELD_OF_FIRE, true);
@@ -1182,6 +1193,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         return store.getBoolean(SHOW_UNIT_DISPLAY_NAMES_ON_MINIMAP);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean getEntityOwnerLabelColor() {
         return store.getBoolean(ENTITY_OWNER_LABEL_COLOR);
     }
@@ -1246,38 +1258,47 @@ public class GUIPreferences extends PreferenceStoreProxy {
         return store.getBoolean(FOV_SPOTTING_MODE);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public int getMapZoomIndex() {
         return store.getInt(MAP_ZOOM_INDEX);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean getMekSelectorIncludeModel() {
         return store.getBoolean(MEK_SELECTOR_INCLUDE_MODEL);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean getMekSelectorIncludeName() {
         return store.getBoolean(MEK_SELECTOR_INCLUDE_NAME);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean getMekSelectorIncludeTons() {
         return store.getBoolean(MEK_SELECTOR_INCLUDE_TONS);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean getMekSelectorIncludeBV() {
         return store.getBoolean(MEK_SELECTOR_INCLUDE_BV);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean getMekSelectorIncludeYear() {
         return store.getBoolean(MEK_SELECTOR_INCLUDE_YEAR);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean getMekSelectorIncludeLevel() {
         return store.getBoolean(MEK_SELECTOR_INCLUDE_LEVEL);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean getMekSelectorIncludeCost() {
         return store.getBoolean(MEK_SELECTOR_INCLUDE_COST);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public boolean getMekSelectorShowAdvanced() {
         return store.getBoolean(MEK_SELECTOR_SHOW_ADVANCED);
     }
@@ -1350,6 +1371,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         return store.getInt(RND_ARMY_SPLIT_POS);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public String getMinimapColours() {
         return store.getString(MINI_MAP_COLOURS);
     }
@@ -1570,6 +1592,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         return store.getInt(RULER_SIZE_WIDTH);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public int getScrollSensitivity() {
         return store.getInt(SCROLL_SENSITIVITY);
     }
@@ -1754,6 +1777,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         return store.getBoolean(ADVANCED_SAVE_LOBBY_ON_START);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setSaveLobbyOnStart(boolean value) {
         store.setValue(ADVANCED_SAVE_LOBBY_ON_START, value);
     }
@@ -1776,6 +1800,10 @@ public class GUIPreferences extends PreferenceStoreProxy {
 
     public boolean getBoardEdRndStart() {
         return store.getBoolean(BOARD_EDIT_RANDOM_DIALOG_START);
+    }
+
+    public boolean getBoardSaveIncludeLicense() {
+        return store.getBoolean(BOARD_SAVE_INCLUDE_LICENSE);
     }
 
     public void setShadowMap(boolean state) {
@@ -1950,6 +1978,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(UNIT_DISPLAY_LOCATION, ((getInt(UNIT_DISPLAY_LOCATION) + 1) % 2));
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setUnitDisplayLocation(int i) {
         store.setValue(UNIT_DISPLAY_LOCATION, i);
     }
@@ -2046,6 +2075,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(SHOW_COORDS, !getBoolean(SHOW_COORDS));
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setCoordsEnabled(boolean b) {
         store.setValue(SHOW_COORDS, b);
     }
@@ -2066,6 +2096,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(SHOW_UNIT_DISPLAY_NAMES_ON_MINIMAP, state);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setEntityOwnerLabelColor(boolean i) {
         store.setValue(ENTITY_OWNER_LABEL_COLOR, i);
     }
@@ -2134,34 +2165,42 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(MAP_ZOOM_INDEX, zoomIndex);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekSelectorIncludeModel(boolean includeModel) {
         store.setValue(MEK_SELECTOR_INCLUDE_MODEL, includeModel);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekSelectorIncludeName(boolean includeName) {
         store.setValue(MEK_SELECTOR_INCLUDE_NAME, includeName);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekSelectorIncludeTons(boolean includeTons) {
         store.setValue(MEK_SELECTOR_INCLUDE_TONS, includeTons);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekSelectorIncludeBV(boolean includeBV) {
         store.setValue(MEK_SELECTOR_INCLUDE_BV, includeBV);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekSelectorIncludeYear(boolean includeYear) {
         store.setValue(MEK_SELECTOR_INCLUDE_YEAR, includeYear);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekSelectorIncludeLevel(boolean includeLevel) {
         store.setValue(MEK_SELECTOR_INCLUDE_LEVEL, includeLevel);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekSelectorIncludeCost(boolean includeCost) {
         store.setValue(MEK_SELECTOR_INCLUDE_COST, includeCost);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekSelectorShowAdvanced(boolean showAdvanced) {
         store.setValue(MEK_SELECTOR_SHOW_ADVANCED, showAdvanced);
     }
@@ -2311,6 +2350,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(MINI_REPORT_LOCATION, ((getInt(MINI_REPORT_LOCATION) + 1) % 2));
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMiniReportLocation(int i) {
         store.setValue(MINI_REPORT_LOCATION, i);
     }
@@ -2455,6 +2495,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(RULER_SIZE_WIDTH, i);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setScrollSensitivity(int i) {
         store.setValue(SCROLL_SENSITIVITY, i);
     }
@@ -2467,6 +2508,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(SHOW_SENSOR_RANGE, state);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setShowMapHexPopup(boolean state) {
         store.setValue(SHOW_MAP_HEX_POPUP, state);
     }
@@ -2556,10 +2598,12 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(WINDOW_SIZE_WIDTH, i);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekInFirst(boolean b) {
         store.setValue(LOS_MEK_IN_FIRST, b);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setMekInSecond(boolean b) {
         store.setValue(LOS_MEK_IN_SECOND, b);
     }
@@ -2620,96 +2664,22 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(SBF_SHEET_VALUE_FONT, font);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public int getRATTechLevel() {
         return store.getInt(RAT_TECH_LEVEL);
-    }
-
-    public void setRATTechLevel(int v) {
-        store.setValue(RAT_TECH_LEVEL, v);
-    }
-
-    public String getRATBVMin() {
-        return store.getString(RAT_BV_MIN);
-    }
-
-    public void setRATBVMin(String v) {
-        store.setValue(RAT_BV_MIN, v);
-    }
-
-    public String getRATBVMax() {
-        return store.getString(RAT_BV_MAX);
-    }
-
-    public void setRATBVMax(String v) {
-        store.setValue(RAT_BV_MAX, v);
-    }
-
-    public String getRATNumMeks() {
-        return store.getString(RAT_NUM_MEKS);
-    }
-
-    public void setRATNumMeks(String v) {
-        store.setValue(RAT_NUM_MEKS, v);
-    }
-
-    public String getRATNumVees() {
-        return store.getString(RAT_NUM_VEES);
-    }
-
-    public void setRATNumVees(String v) {
-        store.setValue(RAT_NUM_VEES, v);
-    }
-
-    public String getRATNumBA() {
-        return store.getString(RAT_NUM_BA);
-    }
-
-    public void setRATNumBA(String v) {
-        store.setValue(RAT_NUM_BA, v);
-    }
-
-    public String getRATNumInf() {
-        return store.getString(RAT_NUM_INF);
-    }
-
-    public void setRATNumInf(String v) {
-        store.setValue(RAT_NUM_INF, v);
-    }
-
-    public String getRATYearMin() {
-        return store.getString(RAT_YEAR_MIN);
-    }
-
-    public void setRATYearMin(String v) {
-        store.setValue(RAT_YEAR_MIN, v);
-    }
-
-    public String getRATYearMax() {
-        return store.getString(RAT_YEAR_MAX);
-    }
-
-    public void setRATYearMax(String v) {
-        store.setValue(RAT_YEAR_MAX, v);
-    }
-
-    public boolean getRATPadBV() {
-        return store.getBoolean(RAT_PAD_BV);
-    }
-
-    public void setRATPadBV(boolean v) {
-        store.setValue(RAT_PAD_BV, v);
     }
 
     public String getRATSelectedRAT() {
         return store.getString(RAT_SELECTED_RAT);
     }
 
-    public void setRATSelectedRAT(String v) {
-        store.setValue(RAT_SELECTED_RAT, v);
-    }
-
     public void setBoardEdRndStart(boolean b) {
         store.setValue(BOARD_EDIT_RANDOM_DIALOG_START, b);
+    }
+
+    @Deprecated(since = "0.51.0", forRemoval = true)
+    public void setBoardSaveIncludeLicense(boolean includeLicense) {
+        store.setValue(BOARD_SAVE_INCLUDE_LICENSE, includeLicense);
     }
 
     // region Colours
@@ -3341,6 +3311,14 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setValue(TRACE_OVERLAY_SCALE, i);
     }
 
+    public int getToastDripSeconds() {
+        return getInt(TOAST_DRIP_SECONDS);
+    }
+
+    public void setToastDripSeconds(int i) {
+        store.setValue(TOAST_DRIP_SECONDS, i);
+    }
+
     public int getTraceOverlayOriginX() {
         return getInt(TRACE_OVERLAY_ORIGIN_X);
     }
@@ -3489,18 +3467,22 @@ public class GUIPreferences extends PreferenceStoreProxy {
         return getInt(BOT_COMMANDS_POS_Y);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setBotCommandsHeight(int i) {
         store.setValue(BOT_COMMANDS_HEIGHT, i);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public int getBotCommandsHeight() {
         return getInt(BOT_COMMANDS_HEIGHT);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setBotCommandsWidth(int i) {
         store.setValue(BOT_COMMANDS_WIDTH, i);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public int getBotCommandsWidth() {
         return getInt(BOT_COMMANDS_WIDTH);
     }
@@ -3532,6 +3514,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         return getBoolean(SHOW_TRACE_OVERLAY);
     }
 
+    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setShowPlanetaryConditionsOverlay(boolean b) {
         store.setValue(SHOW_PLANETARY_CONDITIONS_OVERLAY, b);
     }
@@ -3815,4 +3798,22 @@ public class GUIPreferences extends PreferenceStoreProxy {
     public void setForceDisplayBtnMisc(boolean value) {store.setValue(FORCE_DISPLAY_BTN_MISC, value);}
 
     public boolean getForceDisplayBtnMisc() {return getBoolean(FORCE_DISPLAY_BTN_MISC);}
+
+    // region Ruler Diagram
+    public boolean getRulerDiagramVisible() {
+        return store.getBoolean(RULER_DIAGRAM_VISIBLE);
+    }
+
+    public void setRulerDiagramVisible(boolean visible) {
+        store.setValue(RULER_DIAGRAM_VISIBLE, visible);
+    }
+
+    public boolean getRulerCompareVisible() {
+        return store.getBoolean(RULER_COMPARE_VISIBLE);
+    }
+
+    public void setRulerCompareVisible(boolean visible) {
+        store.setValue(RULER_COMPARE_VISIBLE, visible);
+    }
+    // endregion Ruler Diagram
 }

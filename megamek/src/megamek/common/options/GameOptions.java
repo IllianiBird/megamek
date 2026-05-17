@@ -79,9 +79,11 @@ public class GameOptions extends BasicGameOptions {
 
         IBasicOptionGroup base = addGroup("basic");
         // Change this to false for normal release
+        addOption(base, OptionsConstants.TWRULES, true);
         addOption(base, OptionsConstants.PLAYTEST_1, false);
         addOption(base, OptionsConstants.PLAYTEST_2, false);
         addOption(base, OptionsConstants.PLAYTEST_3, false);
+        addOption(base, OptionsConstants.SEARCHLIGHTS_ON, true);
         addOption(base, OptionsConstants.BASE_PUSH_OFF_BOARD, true);
         addOption(base, OptionsConstants.BASE_DUMPING_FROM_ROUND, 1);
         addOption(base, OptionsConstants.BASE_LOBBY_AMMO_DUMP, false);
@@ -132,6 +134,8 @@ public class GameOptions extends BasicGameOptions {
         addOption(advancedRules, OptionsConstants.ADVANCED_TAC_OPS_BAP, false);
         addOption(advancedRules, OptionsConstants.ADVANCED_TAC_OPS_ECCM, false);
         addOption(advancedRules, OptionsConstants.ADVANCED_TAC_OPS_GHOST_TARGET, false);
+        addOption(advancedRules, OptionsConstants.ADVANCED_GHOST_TARGET_MODE, IOption.CHOICE,
+              OptionsConstants.GHOST_TARGET_MODE_STANDARD);
         addOption(advancedRules, OptionsConstants.ADVANCED_GHOST_TARGET_MAX, 5);
         addOption(advancedRules, OptionsConstants.ADVANCED_TAC_OPS_DIG_IN, false);
         addOption(advancedRules, OptionsConstants.ADVANCED_TAC_OPS_BA_WEIGHT, false);
@@ -159,7 +163,8 @@ public class GameOptions extends BasicGameOptions {
         addOption(advancedRules, OptionsConstants.ADVANCED_WOODS_BURN_DOWN, false);
         addOption(advancedRules, OptionsConstants.ADVANCED_WOODS_BURN_DOWN_AMOUNT, 5);
         addOption(advancedRules, OptionsConstants.ADVANCED_NO_IGNITE_CLEAR, false);
-        addOption(advancedRules, OptionsConstants.ADVANCED_ALL_HAVE_EI_COCKPIT, false);
+        addOption(advancedRules, OptionsConstants.ADVANCED_NEURAL_INTERFACE_MODE, IOption.CHOICE,
+              OptionsConstants.NEURAL_INTERFACE_MODE_OFF);
         addOption(advancedRules, OptionsConstants.ADVANCED_EXTREME_TEMPERATURE_SURVIVAL, false);
         addOption(advancedRules, OptionsConstants.ADVANCED_ARMED_MEKWARRIORS, false);
         addOption(advancedRules, OptionsConstants.ADVANCED_PILOTS_VISUAL_RANGE_ONE, false);
@@ -212,6 +217,7 @@ public class GameOptions extends BasicGameOptions {
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_TAC_OPS_ADVANCED_MEK_HIT_LOCATIONS, false);
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_TAC_OPS_COOLANT_FAILURE, false);
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_TAC_OPS_BA_VS_BA, false);
+        addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_PICKING_UP_AND_THROWING_UNITS, false);
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_NO_TAC, false);
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_VTOL_STRAFING, false);
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_VEHICLES_SAFE_FROM_INFERNOS, false);
@@ -231,7 +237,6 @@ public class GameOptions extends BasicGameOptions {
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_FOREST_FIRES_NO_SMOKE, false);
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_HOT_LOAD_IN_GAME, false);
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_MULTI_USE_AMS, false);
-        addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_PICKING_UP_AND_THROWING_UNITS, false);
 
         IBasicOptionGroup advancedGroundMovement = addGroup("advancedGroundMovement");
         addOption(advancedGroundMovement, OptionsConstants.ADVANCED_GROUND_MOVEMENT_TAC_OPS_SPRINT, false);
@@ -332,10 +337,12 @@ public class GameOptions extends BasicGameOptions {
         addOption(rpg, OptionsConstants.RPG_BEGIN_SHUTDOWN, false);
     }
 
+    @Override
     public Vector<IOption> loadOptions() {
         return loadOptions(new File(GAME_OPTIONS_FILE_NAME), true);
     }
 
+    @Override
     public synchronized Vector<IOption> loadOptions(File file, boolean print) {
         Vector<IOption> changedOptions = new Vector<>(1, 1);
 
@@ -367,6 +374,16 @@ public class GameOptions extends BasicGameOptions {
 
         String name = node.getName();
         Object value = node.getValue();
+
+        // Migrate old boolean track_neural_interface_hardware to new CHOICE neural_interface_mode
+        // Old false = implant-only benefits = Pilot Only mode (not Off)
+        if ((null != name) && name.equals(OptionsConstants.ADVANCED_TRACK_NEURAL_INTERFACE_HARDWARE)) {
+            name = OptionsConstants.ADVANCED_NEURAL_INTERFACE_MODE;
+            value = Boolean.parseBoolean(value.toString())
+                  ? OptionsConstants.NEURAL_INTERFACE_MODE_FULL_TRACKING
+                  : OptionsConstants.NEURAL_INTERFACE_MODE_PILOT_ONLY;
+        }
+
         if ((null != name) && (null != value)) {
             IOption tempOption = getOption(name);
 
@@ -523,14 +540,29 @@ public class GameOptions extends BasicGameOptions {
 
                 final NodeList nl2 = wn.getChildNodes();
                 IOption option = null;
+                boolean migrateNeuralInterface = false;
                 for (int y = 0; y < nl2.getLength(); y++) {
                     final Node wn2 = nl2.item(y);
                     switch (wn2.getNodeName()) {
                         case "name":
-                            option = getOption(wn2.getTextContent().trim());
+                            String optionName = wn2.getTextContent().trim();
+                            // Migrate old boolean option name to new CHOICE option
+                            if (optionName.equals(OptionsConstants.ADVANCED_TRACK_NEURAL_INTERFACE_HARDWARE)) {
+                                optionName = OptionsConstants.ADVANCED_NEURAL_INTERFACE_MODE;
+                                migrateNeuralInterface = true;
+                            }
+                            option = getOption(optionName);
                             break;
                         case "value":
-                            final String value = wn2.getTextContent().trim();
+                            String value = wn2.getTextContent().trim();
+                            // Migrate old boolean value to new CHOICE value
+                            // Old false = implant-only benefits = Pilot Only mode (not Off)
+                            if (migrateNeuralInterface && (option != null)) {
+                                value = Boolean.parseBoolean(value)
+                                      ? OptionsConstants.NEURAL_INTERFACE_MODE_FULL_TRACKING
+                                      : OptionsConstants.NEURAL_INTERFACE_MODE_PILOT_ONLY;
+                                migrateNeuralInterface = false;
+                            }
                             if ((option != null) && !option.getValue().toString().equals(value)) {
                                 switch (option.getType()) {
                                     case IOption.STRING:

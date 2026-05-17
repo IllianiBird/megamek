@@ -42,14 +42,12 @@ import megamek.client.ui.Messages;
 import megamek.client.ui.clientGUI.GUIPreferences;
 import megamek.client.ui.clientGUI.boardview.BoardView;
 import megamek.client.ui.clientGUI.boardview.LabelDisplayStyle;
-import megamek.client.ui.util.EntityWreckHelper;
 import megamek.client.ui.util.StringDrawer;
 import megamek.client.ui.util.UIUtil;
 import megamek.common.annotations.Nullable;
 import megamek.common.board.Board;
 import megamek.common.board.Coords;
 import megamek.common.compute.Compute;
-import megamek.common.equipment.GunEmplacement;
 import megamek.common.equipment.HandheldWeapon;
 import megamek.common.units.*;
 
@@ -494,49 +492,6 @@ public class EntitySprite extends Sprite {
         // translate everything (=correction for label placement)
         graph.translate(-hexOrigin.x, -hexOrigin.y);
 
-        if (!bv.useIsometric()) {
-            // The entity sprite is drawn when the hexes are rendered. So do not include the sprite info here.
-            if (onlyDetectedBySensors()) {
-                graph.drawImage(bv.getScaledImage(radarBlipImage, true), 0, 0, this);
-            } else {
-                // draw the unit icon translucent if: hidden from the enemy (and activated graphics setting); or
-                // submerged
-                boolean translucentHiddenUnits = GUIP.getTranslucentHiddenUnits();
-                boolean shouldBeTranslucent = (trackThisEntitiesVisibilityInfo(entity) && !entity.isVisibleToEnemy())
-                      || entity.isHidden();
-                if ((shouldBeTranslucent && translucentHiddenUnits) || (entity.relHeight() < 0)) {
-                    graph.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.5f));
-                }
-
-                // draw the 'fuel leak' decal where appropriate
-                boolean drawFuelLeak = EntityWreckHelper.displayFuelLeak(entity);
-
-                if (drawFuelLeak) {
-                    Image fuelLeak = bv.getScaledImage(bv.getTileManager().bottomLayerFuelLeakMarkerFor(entity), true);
-                    if (null != fuelLeak) {
-                        graph.drawImage(fuelLeak, 0, 0, this);
-                    }
-                }
-
-                // draw the 'tires' or 'tracks' decal where appropriate
-                boolean drawMotiveWreckage = EntityWreckHelper.displayMotiveDamage(entity);
-
-                if (drawMotiveWreckage) {
-                    Image motiveWreckage = bv.getScaledImage(bv.getTileManager().bottomLayerMotiveMarkerFor(entity),
-                          true);
-                    if (null != motiveWreckage) {
-                        graph.drawImage(motiveWreckage, 0, 0, this);
-                    }
-                }
-
-                graph.drawImage(bv.getScaledImage(bv.getTileManager().imageFor(entity, secondaryPos), true),
-                      0,
-                      0,
-                      this);
-                graph.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
-            }
-        }
-
         // scale the following draws according to board zoom
         graph.scale(bv.getScale(), bv.getScale());
 
@@ -610,6 +565,10 @@ public class EntitySprite extends Sprite {
 
             if (!isStaticEntity && entity.isImmobile()) {
                 stStr.add(new Status(GUIP.getWarningColor(), "IMMOBILE"));
+            }
+
+            if ((entity instanceof ConvInfantry infantry) && infantry.isExhaustedFromFastMove()) {
+                stStr.add(new Status(GUIP.getWarningColor(), "EXHAUSTED"));
             }
 
             if (entity.isBracing()) {
@@ -807,12 +766,9 @@ public class EntitySprite extends Sprite {
 
             // draw facing
             graph.setColor(Color.white);
-            if ((entity.getFacing() != -1) && !((entity instanceof Infantry)
-                  && !((Infantry) entity).hasFieldWeapon()
-                  && !((Infantry) entity).isTakingCover()) && !(
-                  (entity instanceof IAero)
-                        && ((IAero) entity).isSpheroid()
-                        && !board.isSpace())) {
+            if ((entity.getFacing() != -1)
+                  && !((entity instanceof ConvInfantry infantry) && !infantry.hasFieldWeapon() && !infantry.isTakingCover())
+                  && !((entity instanceof IAero) && ((IAero) entity).isSpheroid() && !board.isSpace())) {
                 // Indicate a stacked unit with the same facing that can still move
                 if (shouldIndicateNotDone() && bv.game.getPhase().isMovement()) {
                     var tr = graph.getTransform();

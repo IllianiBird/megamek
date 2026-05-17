@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2025-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -46,7 +46,6 @@ import megamek.common.compute.ComputeSideTable;
 import megamek.common.enums.AimingMode;
 import megamek.common.equipment.AmmoMounted;
 import megamek.common.equipment.AmmoType;
-import megamek.common.equipment.GunEmplacement;
 import megamek.common.equipment.HandheldWeapon;
 import megamek.common.equipment.INarcPod;
 import megamek.common.equipment.MiscType;
@@ -57,6 +56,7 @@ import megamek.common.game.Game;
 import megamek.common.interfaces.ILocationExposureStatus;
 import megamek.common.options.OptionsConstants;
 import megamek.common.rolls.TargetRoll;
+import megamek.common.units.ConvInfantry;
 import megamek.common.units.Entity;
 import megamek.common.units.EntityMovementType;
 import megamek.common.units.IBuilding;
@@ -131,7 +131,8 @@ public class ComputeToHit {
 
         boolean isWeaponInfantry = weaponType.hasFlag(WeaponType.F_INFANTRY) && !ae.isSupportVehicle();
 
-        boolean isWeaponFieldGuns = isAttackerInfantry && (weapon.getLocation() == Infantry.LOC_FIELD_GUNS);
+        boolean isWeaponFieldGuns =
+              (ae instanceof ConvInfantry) && (weapon.getLocation() == ConvInfantry.LOC_FIELD_GUNS);
         // 2003-01-02 BattleArmor MG and Small Lasers have unlimited ammo.
         // 2002-09-16 Infantry weapons have unlimited ammo.
 
@@ -243,9 +244,9 @@ public class ComputeToHit {
 
         // Break weapon type checks into logical groups
         boolean isLrmType = (ammoTypeEnum == AmmoType.AmmoTypeEnum.LRM) ||
-                (ammoTypeEnum == AmmoType.AmmoTypeEnum.LRM_IMP);
+              (ammoTypeEnum == AmmoType.AmmoTypeEnum.LRM_IMP);
         boolean isSrmType = (ammoTypeEnum == AmmoType.AmmoTypeEnum.SRM) ||
-                (ammoTypeEnum == AmmoType.AmmoTypeEnum.SRM_IMP);
+              (ammoTypeEnum == AmmoType.AmmoTypeEnum.SRM_IMP);
         boolean isMmlType = (ammoTypeEnum == AmmoType.AmmoTypeEnum.MML);
 
         // Combine into weapon compatibility check
@@ -354,7 +355,8 @@ public class ComputeToHit {
                         (ammoType.getAmmoType() == AmmoType.AmmoTypeEnum.SRM) ||
                         (ammoType.getAmmoType() == AmmoType.AmmoTypeEnum.SRM_IMP) ||
                         (ammoType.getAmmoType() == AmmoType.AmmoTypeEnum.NLRM)) &&
-                  (munition.contains(AmmoType.Munitions.M_NARC_CAPABLE))) {
+                  (munition.contains(AmmoType.Munitions.M_NARC_CAPABLE) ||
+                        munition.contains(AmmoType.Munitions.M_ARAD))) {
                 isINarcGuided = true;
             }
         }
@@ -371,7 +373,8 @@ public class ComputeToHit {
                   (te != null) &&
                   (ammoType != null) &&
                   usesAmmo &&
-                  (munition.contains(AmmoType.Munitions.M_NARC_CAPABLE) &&
+                  ((munition.contains(AmmoType.Munitions.M_NARC_CAPABLE)
+                        || munition.contains(AmmoType.Munitions.M_ARAD)) &&
                         (te.isNarcedBy(ae.getOwner().getTeam()) || te.isINarcedBy(ae.getOwner().getTeam())))) {
                 spotter = te;
                 narcSpotter = true;
@@ -801,6 +804,9 @@ public class ComputeToHit {
               isECMAffected,
               isINarcGuided);
 
+        // Add the combined EI terrain reduction as a single modifier (if any was accumulated)
+        toHit.finalizeEiModifier();
+
         // okay!
         return toHit;
     }
@@ -1006,7 +1012,8 @@ public class ComputeToHit {
               (targetType == Targetable.TYPE_FUEL_TANK_IGNITE) ||
               (target.isBuildingEntityOrGunEmplacement());
 
-        if ((distance == 1) && isBuilding) {
+        if ((distance == 1) && isBuilding && (ae.moved != EntityMovementType.MOVE_SPRINT
+              && ae.moved != EntityMovementType.MOVE_VTOL_SPRINT)) {
             return Messages.getString("WeaponAttackAction.AdjBuilding");
         }
 
@@ -1537,11 +1544,12 @@ public class ComputeToHit {
                         (ammoType.getAmmoType() == AmmoType.AmmoTypeEnum.MML) ||
                         (ammoType.getAmmoType() == AmmoType.AmmoTypeEnum.NLRM) ||
                         (ammoType.getAmmoType() == AmmoType.AmmoTypeEnum.MEK_MORTAR)) &&
-                  (munition.contains(AmmoType.Munitions.M_SEMIGUIDED))) {
+                  (munition.contains(AmmoType.Munitions.M_SEMIGUIDED)) &&
+                  (Compute.isTargetTagged(target, game))) {
 
-                if (Compute.isTargetTagged(target, game)) {
-                    toHit.addModifier(-1, Messages.getString("WeaponAttackAction.SemiGuidedIndirect"));
-                }
+
+                toHit.addModifier(-1, Messages.getString("WeaponAttackAction.SemiGuidedIndirect"));
+
             } else if (!narcSpotter && (spotter != null)) {
                 // Unless the target has been tagged, or the spotter has an active command
                 // console

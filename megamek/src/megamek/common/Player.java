@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2000-2004 Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2002-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2002-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -111,6 +111,7 @@ public final class Player extends TurnOrdered {
     private int numMfVibra = 0;
     private int numMfActive = 0;
     private int numMfInferno = 0;
+    private int numMfEMP = 0;
 
     // hexes that are automatically hit by artillery
     private List<BoardLocation> artyAutoHitHexes = new ArrayList<>();
@@ -183,6 +184,7 @@ public final class Player extends TurnOrdered {
               (numMfVibra > 0) ||
               (numMfActive > 0) ||
               (numMfInferno > 0) ||
+              (numMfEMP > 0) ||
               !getGroundObjectsToPlace().isEmpty();
     }
 
@@ -224,6 +226,14 @@ public final class Player extends TurnOrdered {
 
     public int getNbrMFInferno() {
         return numMfInferno;
+    }
+
+    public void setNbrMFEMP(int nbrMF) {
+        numMfEMP = nbrMF;
+    }
+
+    public int getNbrMFEMP() {
+        return numMfEMP;
     }
 
     public Camouflage getCamouflage() {
@@ -670,7 +680,8 @@ public final class Player extends TurnOrdered {
 
         int bonus = 0;
         for (InGameObject object : game.getInGameObjects()) {
-            if (object instanceof Entity entity && entity.getOwner().equals(this)) {
+            if (object instanceof Entity entity && entity.getOwner().equals(this)
+                  && isActiveForCommandBonus(entity)) {
                 bonus = Math.max(entity.getHQIniBonus(), bonus);
             }
         }
@@ -687,7 +698,8 @@ public final class Player extends TurnOrdered {
 
         int bonus = 0;
         for (InGameObject object : game.getInGameObjects()) {
-            if (object instanceof Entity entity && entity.getOwner().equals(this)) {
+            if (object instanceof Entity entity && entity.getOwner().equals(this)
+                  && isActiveForCommandBonus(entity)) {
                 bonus = Math.max(bonus, entity.getQuirkIniBonus());
             }
         }
@@ -705,7 +717,8 @@ public final class Player extends TurnOrdered {
         int bestBonus = 0;
         String bestQuirkName = null;
         for (InGameObject object : game.getInGameObjects()) {
-            if (object instanceof Entity entity && entity.getOwner().equals(this)) {
+            if (object instanceof Entity entity && entity.getOwner().equals(this)
+                  && isActiveForCommandBonus(entity)) {
                 int entityBonus = entity.getQuirkIniBonus();
                 if (entityBonus > bestBonus) {
                     bestBonus = entityBonus;

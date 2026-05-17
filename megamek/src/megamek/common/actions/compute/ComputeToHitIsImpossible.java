@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -88,7 +88,7 @@ class ComputeToHitIsImpossible {
      * TODO: replace 40-ish parameters with an attack info record of some kind.
      *
      * @param game                  The current {@link Game}
-     * @param attacker              The Entity making this attack
+     * @param weaponEntity          The Entity making this attack
      * @param attackerId            The ID number of the attacking entity
      * @param target                The Targetable object being attacked
      * @param targetType            The targetable object type
@@ -541,17 +541,16 @@ class ComputeToHitIsImpossible {
         }
 
         // Torpedoes must remain in the water over their whole path to the target
-        if ((ammoType != null) &&
-              ((ammoType.getAmmoType() == LRM_TORPEDO) ||
-                    (ammoType.getAmmoType() == SRM_TORPEDO) ||
-                    (((ammoType.getAmmoType() == SRM) ||
-                          (ammoType.getAmmoType() == SRM_IMP) ||
-                          (ammoType.getAmmoType() == MRM) ||
-                          (ammoType.getAmmoType() == LRM) ||
-                          (ammoType.getAmmoType() == LRM_IMP) ||
-                          (ammoType.getAmmoType() == MML)) &&
-                          (ammoType.getMunitionType().contains(AmmoType.Munitions.M_TORPEDO)))) &&
-              (los.getMinimumWaterDepth() < 1)) {
+        if ((ammoType != null) && (ammoType.getAmmoType() != null && ammoType.getAmmoType().isTorpedo()
+              || (((ammoType.getAmmoType() == SRM)
+              || (ammoType.getAmmoType() == SRM_IMP)
+              || (ammoType.getAmmoType() == MRM)
+              || (ammoType.getAmmoType() == LRM)
+              || (ammoType.getAmmoType() == LRM_IMP)
+              || (ammoType.getAmmoType() == MML))
+              && (ammoType.getMunitionType().contains(AmmoType.Munitions.M_TORPEDO))))
+              && (los.getMinimumWaterDepth() < 1)) {
+
             return Messages.getString("WeaponAttackAction.TorpOutOfWater");
         }
 
@@ -907,7 +906,7 @@ class ComputeToHitIsImpossible {
                 // Additional Nap-of-Earth restrictions for strafing
                 if ((attacker.isNOE()) && isStrafing) {
                     Vector<Coords> passedThrough = attacker.getPassedThrough();
-                    if (passedThrough.isEmpty() || passedThrough.get(0).equals(target.getPosition())) {
+                    if (passedThrough.isEmpty() || passedThrough.getFirst().equals(target.getPosition())) {
                         // TW pg 243 says units flying at NOE have a harder time establishing LoS while strafing and
                         // hence have to consider the adjacent hex along the flight place in the direction of the
                         // attack. What if there is no adjacent hex? The rules don't address this. We could
@@ -1521,7 +1520,7 @@ class ComputeToHitIsImpossible {
                     return Messages.getString("WeaponAttackAction.CantShootAndFastMove");
                 }
                 // check for trying to fire field gun after moving
-                if ((weapon.getLocation() == Infantry.LOC_FIELD_GUNS) && (attacker.moved
+                if ((weapon.getLocation() == ConvInfantry.LOC_FIELD_GUNS) && (attacker.moved
                       != EntityMovementType.MOVE_NONE)) {
                     return Messages.getString("WeaponAttackAction.CantMoveAndFieldGun");
                 }
@@ -1534,9 +1533,9 @@ class ComputeToHitIsImpossible {
                     if (prevAttack.getEntityId() == attackerId) {
                         Mounted<?> prevWeapon = attacker.getEquipment(prevAttack.getWeaponId());
                         if ((prevWeapon.getType().hasFlag(WeaponType.F_INFANTRY) &&
-                              (weapon.getLocation() == Infantry.LOC_FIELD_GUNS)) ||
+                              (weapon.getLocation() == ConvInfantry.LOC_FIELD_GUNS)) ||
                               (weapon.getType().hasFlag(WeaponType.F_INFANTRY) &&
-                                    (prevWeapon.getLocation() == Infantry.LOC_FIELD_GUNS))) {
+                                    (prevWeapon.getLocation() == ConvInfantry.LOC_FIELD_GUNS))) {
                             return Messages.getString("WeaponAttackAction.FieldGunOrSAOnly");
                         }
                     }
@@ -1599,7 +1598,7 @@ class ComputeToHitIsImpossible {
             // Infantry can't make ground-to-air attacks, unless using field guns,
             // specialized AA infantry weapons,
             // or direct-fire artillery flak attacks
-            boolean isWeaponFieldGuns = isAttackerInfantry && (weapon.getLocation() == Infantry.LOC_FIELD_GUNS);
+            boolean isWeaponFieldGuns = isAttackerInfantry && (weapon.getLocation() == ConvInfantry.LOC_FIELD_GUNS);
             if ((attacker instanceof Infantry) &&
                   Compute.isGroundToAir(attacker, target) &&
                   !weaponType.hasFlag(WeaponType.F_INF_AA) &&

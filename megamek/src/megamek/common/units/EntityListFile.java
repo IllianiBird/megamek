@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2003, 2004, 2005 Ben Mazur (bmazur@sev.org)
- * Copyright (C) 2003-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2003-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -241,10 +241,10 @@ public class EntityListFile {
                 isDestroyed = true;
             }
 
-            // exact zeroes for BA should not be treated as destroyed as MHQ uses this to
-            // signify
-            // suits without pilots
-            if (entity instanceof BattleArmor && entity.getInternalForReal(loc) >= 0) {
+            // exact zeroes for BA should not be treated as destroyed as MHQ uses this to signify suits without pilots
+            // HHW always have zero internal structure
+            if ((entity instanceof BattleArmor || entity instanceof HandheldWeapon)
+                  && entity.getInternalForReal(loc) >= 0) {
                 isDestroyed = false;
             }
 
@@ -844,7 +844,7 @@ public class EntityListFile {
         int indentLvl = 2;
         for (String killed : kills.keySet()) {
             output.write(indentStr(indentLvl) + '<' + MULParser.ELE_KILL + ' ' + MULParser.ATTR_KILLED + "=\"");
-            output.write(killed.replaceAll("\"", "&quot;"));
+            output.write(killed.replace("\"", "&quot;"));
             output.write("\" " + MULParser.ATTR_KILLER + "=\"");
             output.write(kills.get(killed));
             output.write("\"/>\n");
@@ -858,18 +858,17 @@ public class EntityListFile {
     public static void writeEntityList(Writer output, ArrayList<Entity> list, boolean embedUnits) throws IOException {
         // Walk through the list of entities.
         for (Entity entity : list) {
-            if (entity instanceof FighterSquadron) {
-                continue;
-            }
             int indentLvl = 2;
 
             // Start writing this entity to the file.
             output.write(indentStr(indentLvl) + '<' + MULParser.ELE_ENTITY + ' ' + MULParser.ATTR_CHASSIS + "=\"");
-            output.write(entity.getFullChassis().replaceAll("\"", "&quot;"));
+            output.write(entity.getFullChassis().replace("\"", "&quot;"));
             output.write("\" " + MULParser.ATTR_MODEL + "=\"");
-            output.write(entity.getModel().replaceAll("\"", "&quot;"));
+            output.write(entity.getModel().replace("\"", "&quot;"));
             output.write("\" " + MULParser.ATTR_TYPE + "=\"");
-            output.write(entity.getMovementModeAsString());
+            output.write((entity instanceof FighterSquadron) ?
+                  MULParser.VALUE_SQUADRON :
+                  entity.getMovementModeAsString());
             output.write("\" " + MULParser.ATTR_COMMANDER + "=\"");
             output.write(String.valueOf(entity.isCommander()));
             output.write("\" " + MULParser.ATTR_OFFBOARD + "=\"");
@@ -953,7 +952,7 @@ public class EntityListFile {
             }
 
             // Save some values for conventional infantry
-            if (entity.isConventionalInfantry() && entity instanceof Infantry infantry) {
+            if (entity instanceof ConvInfantry infantry) {
                 if (infantry.getCustomArmorDamageDivisor() != 1) {
                     output.write("\" " + MULParser.ATTR_ARMOR_DIVISOR + "=\"");
                     output.write(infantry.getCustomArmorDamageDivisor() + "");
@@ -1254,13 +1253,13 @@ public class EntityListFile {
             // Write the NC3 Data if needed
             if (entity.hasNavalC3() || entity.hasNovaCEWS()) {
                 logger.debug("[EntityListFile] Saving NC3 for entity {} ({}), hasNavalC3={}, hasNovaCEWS={}",
-                    entity.getId(), entity.getShortName(), entity.hasNavalC3(), entity.hasNovaCEWS());
+                      entity.getId(), entity.getShortName(), entity.hasNavalC3(), entity.hasNovaCEWS());
                 output.write(indentStr(indentLvl + 1) + '<' + MULParser.ELE_NC3 + ">\n");
                 int linkCount = 0;
                 for (Entity NC3Entity : list) {
                     if ((NC3Entity.getC3UUIDAsString() != null) && NC3Entity.onSameC3NetworkAs(entity, true)) {
                         logger.debug("[EntityListFile]   Writing NC3LINK for entity {} UUID: {}",
-                            NC3Entity.getId(), NC3Entity.getC3UUIDAsString());
+                              NC3Entity.getId(), NC3Entity.getC3UUIDAsString());
                         output.write(indentStr(indentLvl + 1) +
                               '<' +
                               MULParser.ELE_NC3LINK +
@@ -1425,7 +1424,7 @@ public class EntityListFile {
                       ' ' +
                       MULParser.ATTR_NUMBER +
                       "=\"" +
-                      eCrew.getOInternal(Infantry.LOC_INFANTRY));
+                      eCrew.getOInternal(ConvInfantry.LOC_INFANTRY));
                 output.write("\"/>\n");
             }
 
@@ -1483,9 +1482,9 @@ public class EntityListFile {
      */
     private static void writePilotAttributes(Writer output, final Entity entity, final Crew crew, int pos)
           throws IOException {
-        output.write("\" " + MULParser.ATTR_NAME + "=\"" + crew.getName(pos).replaceAll("\"", "&quot;"));
+        output.write("\" " + MULParser.ATTR_NAME + "=\"" + crew.getName(pos).replace("\"", "&quot;"));
         output.write("\" " + MULParser.ATTR_NICK + "=\"");
-        output.write(crew.getNickname(pos).replaceAll("\"", "&quot;"));
+        output.write(crew.getNickname(pos).replace("\"", "&quot;"));
         output.write("\" " + MULParser.ATTR_GENDER + "=\"" + crew.getGender(pos).name());
         output.write("\" " + MULParser.ATTR_CLAN_PILOT + "=\"" + crew.isClanPilot(pos));
 
@@ -1596,8 +1595,20 @@ public class EntityListFile {
             output.write("\" " + MULParser.ATTR_IMPLANTS + "=\"");
             output.write(String.valueOf(crew.getOptionList("::", PilotOptions.MD_ADVANTAGES)));
         }
+        if (crew.countOptions(PilotOptions.EI_ADVANTAGES) > 0) {
+            output.write("\" " + MULParser.ATTR_EI_IMPLANTS + "=\"");
+            output.write(String.valueOf(crew.getOptionList("::", PilotOptions.EI_ADVANTAGES)));
+        }
+        // Save EI Interface equipment mode (Off, Initiate enhanced imaging)
+        for (Mounted<?> m : entity.getMisc()) {
+            if (m.getType().hasFlag(MiscType.F_EI_INTERFACE)) {
+                output.write("\" " + MULParser.ATTR_EI_MODE + "=\"");
+                output.write(m.curMode().getName());
+                break;
+            }
+        }
         // Write prosthetic enhancement data for infantry (IO p.84)
-        if (entity instanceof Infantry infantry) {
+        if (entity instanceof ConvInfantry infantry) {
             if (infantry.getProstheticEnhancement1() != null) {
                 output.write("\" " + MULParser.ATTR_PROSTHETIC_ENHANCEMENT_1 + "=\"");
                 output.write(infantry.getProstheticEnhancement1().name());
@@ -1638,6 +1649,14 @@ public class EntityListFile {
                     output.write("\" " + MULParser.ATTR_COND_EJECT_HEAD_SHOT + "=\"true");
                 } else {
                     output.write("\" " + MULParser.ATTR_COND_EJECT_HEAD_SHOT + "=\"false");
+                }
+            }
+            // Save Damage Interrupt Circuit disabled state
+            if (((Mek) entity).hasDamageInterruptCircuit()) {
+                if (((Mek) entity).isDICDisabled()) {
+                    output.write("\" " + MULParser.ATTR_DIC_DISABLED + "=\"true");
+                } else {
+                    output.write("\" " + MULParser.ATTR_DIC_DISABLED + "=\"false");
                 }
             }
         }

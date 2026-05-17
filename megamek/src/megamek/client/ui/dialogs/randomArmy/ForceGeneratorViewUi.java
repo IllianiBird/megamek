@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2016-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -45,6 +45,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -68,7 +69,9 @@ import megamek.client.ui.Messages;
 import megamek.client.ui.clientGUI.ClientGUI;
 import megamek.client.ui.clientGUI.calculationReport.FlexibleCalculationReport;
 import megamek.client.ui.panels.phaseDisplay.lobby.LobbyUtility;
+import megamek.client.ui.tileset.MMStaticDirectoryManager;
 import megamek.client.ui.util.UIUtil;
+import megamek.common.options.GameOptions;
 import megamek.common.units.Entity;
 import megamek.common.loaders.MekSummary;
 import megamek.common.loaders.MekSummaryCache;
@@ -89,10 +92,12 @@ import megamek.logging.MMLogger;
 public class ForceGeneratorViewUi implements ActionListener {
     private final static MMLogger logger = MMLogger.create(ForceGeneratorViewUi.class);
 
+    private final JFrame parentFrame;
+    
     private JPanel leftPanel;
     private JPanel rightPanel;
 
-    private ForceGeneratorOptionsView panControls;
+    private final ForceGeneratorOptionsView panControls;
     private JLabel lblOrganization;
     private JLabel lblFaction;
     private JLabel lblRating;
@@ -108,59 +113,15 @@ public class ForceGeneratorViewUi implements ActionListener {
     static final String FGV_COST = "FGV_COST";
     static final String FGV_VIEW = "FGV_VIEW";
 
-    ClientGUI clientGui;
     protected static MekSummaryCache mscInstance = MekSummaryCache.getInstance();
 
-    public ForceGeneratorViewUi(ClientGUI gui) {
-        clientGui = gui;
+    public ForceGeneratorViewUi(JFrame parentFrame, GameOptions gameOptions) {
+        this.parentFrame = parentFrame;
+        panControls = new ForceGeneratorOptionsView(this::setGeneratedForce, gameOptions);
         initUi();
     }
 
     private void initUi() {
-        panControls = new ForceGeneratorOptionsView(clientGui, this::setGeneratedForce);
-
-        rightPanel = new JPanel();
-        rightPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.insets = new Insets(5, 5, 5, 5);
-
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        rightPanel.add(new JLabel(Messages.getString("ForceGeneratorDialog.organization")), gbc);
-        lblOrganization = new JLabel();
-        gbc.gridx = 1;
-        gbc.gridy = 0;
-        rightPanel.add(lblOrganization, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        rightPanel.add(new JLabel(Messages.getString("ForceGeneratorDialog.faction")), gbc);
-        lblFaction = new JLabel();
-        gbc.gridx = 1;
-        gbc.gridy = 1;
-        rightPanel.add(lblFaction, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        rightPanel.add(new JLabel(Messages.getString("ForceGeneratorDialog.rating")), gbc);
-        lblRating = new JLabel();
-        gbc.gridx = 1;
-        gbc.gridy = 2;
-        rightPanel.add(lblRating, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 3;
-        gbc.gridwidth = 3;
-        gbc.weightx = 1.0;
-        gbc.weighty = 1.0;
-        paneForceTree = new JScrollPane();
-        paneForceTree.setViewportView(forceTree);
-        paneForceTree.setPreferredSize(new Dimension(600, 800));
-        paneForceTree.setMinimumSize(new Dimension(600, 800));
-        rightPanel.add(paneForceTree, gbc);
-
         forceTree = new JTree(new ForceTreeModel(null));
         forceTree.setCellRenderer(new UnitRenderer());
         // JTree setRowHeight(0) the height for each row is determined by the renderer
@@ -186,7 +147,7 @@ public class ForceGeneratorViewUi implements ActionListener {
         forceTree.addMouseListener(treeMouseListener);
 
         rightPanel = new JPanel(new GridBagLayout());
-        gbc = new GridBagConstraints();
+        GridBagConstraints gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.fill = GridBagConstraints.NONE;
         gbc.insets = new Insets(5, 5, 5, 5);
@@ -255,10 +216,14 @@ public class ForceGeneratorViewUi implements ActionListener {
         panControls.setCurrentYear(year);
     }
 
+    public List<Entity> getChosenUnits() {
+        return Collections.unmodifiableList(modelChosen.allEntities());
+    }
+
     /**
      * Adds the chosen units to the game
      */
-    public void addChosenUnits(String playerName) {
+    public void addChosenUnits(String playerName, ClientGUI clientGui) {
         if ((null != forceTree.getModel().getRoot())
               && (forceTree.getModel().getRoot() instanceof ForceDescriptor)) {
             configureNetworks((ForceDescriptor) forceTree.getModel().getRoot());
@@ -353,7 +318,7 @@ public class ForceGeneratorViewUi implements ActionListener {
                   ? ""
                   : UnitType.getTypeName(fd.getUnitType())).get(fd.getEchelonCode()));
             lblFaction.setText(RATGenerator.getInstance().getFaction(fd.getFaction()).getName(fd.getYear()));
-            lblRating.setText(SkillLevel.values()[fd.getExperience()].toString()
+            lblRating.setText(SkillLevel.values()[fd.getExperience() + SkillLevel.GREEN.ordinal()].toString()
                   + ((fd.getRating() == null) ? "" : "/" + fd.getRating()));
         } else {
             lblOrganization.setText("");
@@ -453,17 +418,17 @@ public class ForceGeneratorViewUi implements ActionListener {
             case FGV_VIEW -> {
                 // The entities list may be empty
                 Set<Entity> entities = LobbyUtility.getEntities(st.nextToken(), modelChosen);
-                LobbyUtility.mekReadoutAction(entities, true, true, clientGui.getFrame());
+                LobbyUtility.mekReadoutAction(entities, true, true, parentFrame);
             }
             case FGV_BV -> {
                 // The entities list may be empty
                 Set<Entity> entities = LobbyUtility.getEntities(st.nextToken(), modelChosen);
-                LobbyUtility.mekBVAction(entities, true, true, clientGui.getFrame());
+                LobbyUtility.mekBVAction(entities, true, true, parentFrame);
             }
             case FGV_COST -> {
                 // The entities list may be empty
                 Set<Entity> entities = LobbyUtility.getEntities(st.nextToken(), modelChosen);
-                LobbyUtility.mekCostAction(entities, true, true, clientGui.getFrame());
+                LobbyUtility.mekCostAction(entities, true, true, parentFrame);
             }
         }
     }
@@ -553,7 +518,7 @@ public class ForceGeneratorViewUi implements ActionListener {
         }
     }
 
-    private class UnitRenderer extends DefaultTreeCellRenderer {
+    private static class UnitRenderer extends DefaultTreeCellRenderer {
         public UnitRenderer() {
 
         }
@@ -590,14 +555,18 @@ public class ForceGeneratorViewUi implements ActionListener {
                 setText("<html>" + name + ", " + uname + "</html>");
                 if (fd.getEntity() != null) {
                     try {
-                        clientGui.loadPreviewImage(this, fd.getEntity());
+                        setIcon(new ImageIcon(MMStaticDirectoryManager.getMekTileset().imageFor(fd.getEntity())));
                     } catch (NullPointerException ex) {
                         logger.warn("No image found for {}", fd.getEntity().getShortNameRaw());
                     }
                 }
             } else {
                 StringBuilder desc = new StringBuilder("<html>");
-                desc.append(fd.parseName()).append("<br />").append(fd.getDescription());
+                desc.append(fd.parseName());
+                String description = fd.getDescription();
+                if (description != null && !description.isBlank()) {
+                    desc.append("<br />").append(description);
+                }
                 if (fd.getCo() != null) {
                     desc.append("<br />").append(fd.getCo().getTitle() == null ? "CO: " : fd.getCo().getTitle());
                     desc.append(fd.getCo().getName());

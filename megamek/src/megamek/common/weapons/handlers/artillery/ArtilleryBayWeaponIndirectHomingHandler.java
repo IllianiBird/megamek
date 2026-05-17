@@ -355,7 +355,7 @@ public class ArtilleryBayWeaponIndirectHomingHandler extends ArtilleryBayWeaponI
                     hit.setAttackerId(getAttackerId());
                     // BA gets damage to all troopers
                     if (entity instanceof BattleArmor ba) {
-                        for (int loc = 1; loc <= ba.getTroopers(); loc++) {
+                        for (int loc = 1; loc <= ba.getSquadSize(); loc++) {
                             hit.setLocation(loc);
                             vPhaseReport.addAll(gameManager.damageEntity(entity, hit,
                                   ratedDamage, false, DamageType.NONE, false,
@@ -445,7 +445,7 @@ public class ArtilleryBayWeaponIndirectHomingHandler extends ArtilleryBayWeaponI
                   "no tag in 8 hex radius of target hex");
         } else if (allowed.size() == 1) {
             // Just use target 0...
-            newTarget = allowed.get(0).target;
+            newTarget = allowed.getFirst().target;
             target = newTarget;
             aaa.setTargetId(target.getId());
             aaa.setTargetType(target.getTargetType());
