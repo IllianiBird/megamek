@@ -749,14 +749,7 @@ public class TWGameManager extends AbstractGameManager {
                     receiveForwardIni(connId);
                     break;
                 case BLDG_EXPLODE:
-                    DemolitionCharge charge = (DemolitionCharge) packet.data()[0];
-                    if (charge.playerId == connId) {
-                        if (!explodingCharges.contains(charge)) {
-                            explodingCharges.add(charge);
-                            Player p = game.getPlayer(connId);
-                            sendServerChat(p.getName() + " has touched off explosives " + "(handled in end phase)!");
-                        }
-                    }
+                    receiveExplodeBuilding(packet, connId);
                     break;
                 case ENTITY_MOVE:
                     receiveMovement(packet, connId);
@@ -15761,19 +15754,45 @@ public class TWGameManager extends AbstractGameManager {
      * explosives
      */
     void checkLayExplosives() {
-        // Report continuing explosive work
+        // Report continuing explosive work; auto-finish platoons that reached the maximum of 6 turns
+        // (TO:AUE p.152) since additional turns add no further damage. A platoon that was displaced out of
+        // the target hex (e.g. by a charge or a collapsing building) abandons the work; Infantry#newRound
+        // would also catch this, but silently - reporting it here tells the player the progress was lost.
         for (Entity e : game.getEntitiesVector()) {
             if (!(e instanceof Infantry inf)) {
                 continue;
             }
-            if (inf.turnsLayingExplosives > 0) {
+            if (inf.turnsLayingExplosives < 0) {
+                continue;
+            }
+            if (!inf.isInDemolishableStructureHex()) {
+                inf.turnsLayingExplosives = -1;
+                Report r = new Report(4273);
+                r.subject = inf.getId();
+                r.addDesc(inf);
+                addReport(r);
+            } else if (inf.turnsLayingExplosives >= LayExplosivesAttackAction.MAX_TURNS_LAYING_EXPLOSIVES) {
+                finishLayingExplosives(inf, LayExplosivesAttackAction.getDamageFor(inf));
+            } else if (inf.turnsLayingExplosives > 0) {
                 Report r = new Report(4271);
                 r.subject = inf.getId();
                 r.addDesc(inf);
+                r.add(inf.turnsLayingExplosives);
+                r.add(LayExplosivesAttackAction.MAX_TURNS_LAYING_EXPLOSIVES);
+                r.add(LayExplosivesAttackAction.getDamageFor(inf));
                 addReport(r);
             }
         }
         // Check for touched-off explosives
+        resolveExplodingCharges();
+    }
+
+    /**
+     * Resolves all announced demolition charge detonations, TO:AUE p.152: each charge is removed from its building and
+     * inflicts its damage on the rigged structure hex. Called during End Phase processing and immediately when a
+     * detonation is announced during the End Phase report (the announcement must resolve in the same End Phase).
+     */
+    void resolveExplodingCharges() {
         Vector<IBuilding> updatedBuildings = new Vector<>();
         for (DemolitionCharge charge : explodingCharges) {
             IBuilding bldg = game.getBoard().getBuildingAt(charge.pos);
@@ -15793,6 +15812,34 @@ public class TWGameManager extends AbstractGameManager {
         }
         explodingCharges.clear();
         sendChangedBuildings(updatedBuildings);
+    }
+
+    /**
+     * Receives a demolition charge detonation announcement, TO:AUE p.152. During the End Phase and its report, the
+     * detonation resolves immediately - the rules let the player announce it "during any subsequent End Phase" and the
+     * damage applies in that same phase, but the automatic end-phase processing has already run by the time the
+     * announcement arrives. At any other time (e.g. a map menu touch-off in an earlier phase) the charge is queued and
+     * resolves in the upcoming End Phase.
+     *
+     * @param packet the packet carrying the {@link DemolitionCharge}
+     * @param connId the connection ID of the announcing player
+     */
+    private void receiveExplodeBuilding(Packet packet, int connId) {
+        DemolitionCharge charge = (DemolitionCharge) packet.data()[0];
+        if ((charge.playerId != connId) || explodingCharges.contains(charge)) {
+            return;
+        }
+        explodingCharges.add(charge);
+        Player player = game.getPlayer(connId);
+        GamePhase phase = game.getPhase();
+        if ((phase == GamePhase.END) || (phase == GamePhase.END_REPORT)) {
+            sendServerChat(player.getName() + " has touched off explosives!");
+            resolveExplodingCharges();
+            applyBuildingDamage();
+            sendReport();
+        } else {
+            sendServerChat(player.getName() + " has touched off explosives (handled in end phase)!");
+        }
     }
 
     /**
@@ -16471,22 +16518,33 @@ public class TWGameManager extends AbstractGameManager {
                 r.addDesc(inf);
                 addReport(r);
             } else {
-                IBuilding building = game.getBoard().getBuildingAt(ae.getPosition());
-                if (building != null) {
-                    building.addDemolitionCharge(ae.getOwner().getId(), pr.damage, ae.getPosition());
-                    Report r = new Report(4275);
-                    r.subject = inf.getId();
-                    r.addDesc(inf);
-                    r.add(pr.damage);
-                    addReport(r);
-                    // Update clients with this info
-                    Vector<IBuilding> updatedBuildings = new Vector<>();
-                    updatedBuildings.add(building);
-                    sendChangedBuildings(updatedBuildings);
-                }
-                inf.turnsLayingExplosives = -1;
+                finishLayingExplosives(inf, pr.damage);
             }
         }
+    }
+
+    /**
+     * Finishes a platoon's demolition charge work, TO:AUE p.152: places the accumulated charge on the building in the
+     * platoon's hex and frees the platoon from the laying process.
+     *
+     * @param infantry the platoon that ceases planting charges
+     * @param damage   the accumulated demolition charge damage
+     */
+    private void finishLayingExplosives(Infantry infantry, int damage) {
+        IBuilding building = game.getBoard().getBuildingAt(infantry.getPosition());
+        if (building != null) {
+            building.addDemolitionCharge(infantry.getOwner().getId(), damage, infantry.getPosition());
+            Report r = new Report(4275);
+            r.subject = infantry.getId();
+            r.addDesc(infantry);
+            r.add(damage);
+            addReport(r);
+            // Update clients with this info
+            Vector<IBuilding> updatedBuildings = new Vector<>();
+            updatedBuildings.add(building);
+            sendChangedBuildings(updatedBuildings);
+        }
+        infantry.turnsLayingExplosives = -1;
     }
 
     /**
@@ -22524,11 +22582,17 @@ public class TWGameManager extends AbstractGameManager {
         Vector<Report> vDesc = new Vector<>();
         PilotingRollData psr = en.getBasePilotingRoll();
         Hex hex = game.getBoard().getHex(en.getPosition());
+
         if (en instanceof VTOL) {
             psr.addModifier(4, "VTOL making forced landing");
         } else {
             psr.addModifier(0, "WiGE making forced landing");
         }
+
+        if (en.hasAbility(OptionsConstants.PILOT_WIND_WALKER) && PilotSPAHelper.isWindWalkerValid(en)) {
+            psr.addModifier(-1, "Wind Walker SPA");
+        }
+
         int elevation = Math.max(hex.terrainLevel(Terrains.BLDG_ELEV), hex.terrainLevel(Terrains.BRIDGE_ELEV));
         elevation = Math.max(elevation, 0);
         elevation = Math.min(elevation, en.getElevation());
@@ -23185,7 +23249,7 @@ public class TWGameManager extends AbstractGameManager {
                         r.add(en.getLocationName(loc));
                         r.newlines = 0;
                         vDesc.addElement(r);
-                        cs.setArmored(false);
+                        cs.hitArmored();
                         return vDesc;
                     }
                     // limb blown off
@@ -23213,7 +23277,7 @@ public class TWGameManager extends AbstractGameManager {
                         r.add(en.getLocationName(loc));
                         r.newlines = 0;
                         vDesc.addElement(r);
-                        cs.setArmored(false);
+                        cs.hitArmored();
                         return vDesc;
                     }
 
@@ -23352,7 +23416,7 @@ public class TWGameManager extends AbstractGameManager {
                         }
                     }
                     vDesc.addElement(r);
-                    slot.setArmored(false);
+                    slot.hitArmored();
                     hits--;
                     continue;
                 }
@@ -27874,7 +27938,59 @@ public class TWGameManager extends AbstractGameManager {
      */
     public boolean checkForCollapse(IBuilding bldg, Coords coords, boolean checkBecauseOfDamage,
           Vector<Report> vPhaseReport) {
-        return buildingCollapseHandler.checkForCollapse(bldg, coords, checkBecauseOfDamage, vPhaseReport);
+        boolean collapsed = buildingCollapseHandler.checkForCollapse(bldg, coords, checkBecauseOfDamage, vPhaseReport);
+
+        // TacOps Climbing (TO:AR p.20): check if any climbing entity on an adjacent hex
+        // can no longer be supported by this building after damage
+        if (!collapsed && (bldg != null) && (coords != null)) {
+            checkClimbingEntitiesOnBuilding(bldg, coords, vPhaseReport);
+        }
+
+        return collapsed;
+    }
+
+    /**
+     * Check if any entity climbing this building hex can no longer be supported because the building's CF dropped below
+     * the entity's weight (TO:AR p.20).
+     */
+    private void checkClimbingEntitiesOnBuilding(IBuilding bldg, Coords buildingCoords,
+          Vector<Report> vPhaseReport) {
+        int currentCF = bldg.getCurrentCF(buildingCoords);
+        for (Entity entity : game.getEntitiesVector()) {
+            if (!entity.isClimbing() || entity.isDestroyed() || entity.isDoomed()) {
+                continue;
+            }
+            // Check if this entity is climbing toward the building hex
+            Coords facingCoords = entity.getPosition().translated(entity.getFacing());
+            if (facingCoords.equals(buildingCoords) && (entity.getWeight() > currentCF)) {
+                // Entity is too heavy for the damaged building - falls from climbing position.
+                // Clear the climbing flags BEFORE doEntityFallsInto so the entity update sent
+                // during fall processing carries the cleared state to clients. Otherwise the
+                // client copy stays isClimbing=true and the next-turn selectEntity dialog
+                // wrongly fires "can no longer hold on and will fall!" while prone on ground.
+                Report climbFallReport = new Report(6461, Report.PUBLIC);
+                climbFallReport.add(entity.getDisplayName());
+                vPhaseReport.add(climbFallReport);
+                // Push the same report as a SENDING_REPORTS_SPECIAL packet so clients
+                // surface it immediately as a kill-feed toast at the moment of the fall,
+                // not just buried in the end-of-phase round report. Matches the EMP-mine
+                // popup pattern in MovePathHandler.processSteps. The chat mirror below
+                // gives the player a persistent record in chat as well.
+                Vector<Report> climbFallSpecial = new Vector<>();
+                climbFallSpecial.add(climbFallReport);
+                send(createSpecialReportPacket(climbFallSpecial));
+                sendServerChat(Messages.getString(
+                      "MovementDisplay.ClimbingDialog.buildingTooDamagedChat",
+                      entity.getDisplayName()));
+                entity.setClimbing(false);
+                entity.setDangling(false);
+                entity.setClimbingLevelsChosen(0);
+                PilotingRollData autoFallRoll = new PilotingRollData(entity.getId(),
+                      TargetRoll.AUTOMATIC_FAIL, "building too damaged to support climbing unit");
+                vPhaseReport.addAll(doEntityFallsInto(entity, entity.getElevation(),
+                      entity.getPosition(), entity.getPosition(), autoFallRoll, true, 0));
+            }
+        }
     }
 
     /**
@@ -27974,6 +28090,9 @@ public class TWGameManager extends AbstractGameManager {
                     if (buildingCollapseHandler.checkForCollapse(bldg, positionMap, coords, false, mainPhaseReport)) {
                         coordsToRemove.add(coords);
                     }
+                    // TacOps Climbing (TO:AR p.20): check if any climbing entity
+                    // can no longer be supported after CF reduction
+                    checkClimbingEntitiesOnBuilding(bldg, coords, mainPhaseReport);
                 }
                 updateCoords.removeAll(coordsToRemove);
                 update.put(bldg, updateCoords);
@@ -31331,6 +31450,12 @@ public class TWGameManager extends AbstractGameManager {
                     r.addDesc(inf);
                     r.subject = inf.getId();
                     addReport(r);
+                } else if (inf.isHitTheDeck() && (inf.getTurnsOnDeck() == 0)) {
+                    // Report only on the turn the unit hits the deck (before its idle counter advances). TO:AR p.106.
+                    r = new Report(5301);
+                    r.addDesc(inf);
+                    r.subject = inf.getId();
+                    addReport(r);
                 } else if (dig == Infantry.DUG_IN_FORTIFYING3) {
                     Coords c = inf.getPosition();
                     r = new Report(5305);
@@ -31492,6 +31617,10 @@ public class TWGameManager extends AbstractGameManager {
                     hhwUsedReport.subject = ah.getWeaponAttackAction().getEntityId();
                     hhwUsedReport.addDesc(ah.getWeaponAttackAction().getEntity(game));
                     handleAttackReports.addElement(hhwUsedReport);
+                }
+                // An on-deck infantry unit that fires breaks the idle streak needed to convert to dug in. TO:AR p.106.
+                if (ah.getAttacker() instanceof Infantry firingInfantry && firingInfantry.isHitTheDeck()) {
+                    firingInfantry.setFiredWhileOnDeck(true);
                 }
                 boolean keep = ah.handle(game.getPhase(), handleAttackReports);
                 if (keep) {

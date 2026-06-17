@@ -237,6 +237,7 @@ public class GameOptions extends BasicGameOptions {
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_FOREST_FIRES_NO_SMOKE, false);
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_HOT_LOAD_IN_GAME, false);
         addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_MULTI_USE_AMS, false);
+        addOption(advancedCombat, OptionsConstants.ADVANCED_COMBAT_DISPOSABLE_INFANTRY_WEAPONS, false);
 
         IBasicOptionGroup advancedGroundMovement = addGroup("advancedGroundMovement");
         addOption(advancedGroundMovement, OptionsConstants.ADVANCED_GROUND_MOVEMENT_TAC_OPS_SPRINT, false);
@@ -244,6 +245,7 @@ public class GameOptions extends BasicGameOptions {
         addOption(advancedGroundMovement, OptionsConstants.ADVANCED_GROUND_MOVEMENT_TAC_OPS_EVADE, false);
         addOption(advancedGroundMovement, OptionsConstants.ADVANCED_GROUND_MOVEMENT_TAC_OPS_SKILLED_EVASION, false);
         addOption(advancedGroundMovement, OptionsConstants.ADVANCED_GROUND_MOVEMENT_TAC_OPS_LEAPING, false);
+        addOption(advancedGroundMovement, OptionsConstants.ADVANCED_GROUND_MOVEMENT_TAC_OPS_CLIMBING, false);
         addOption(advancedGroundMovement, OptionsConstants.ADVANCED_GROUND_MOVEMENT_TAC_OPS_PHYSICAL_PSR, false);
         addOption(advancedGroundMovement, OptionsConstants.ADVANCED_GROUND_MOVEMENT_TAC_OPS_PHYSICAL_ATTACK_PSR, false);
         addOption(advancedGroundMovement, OptionsConstants.ADVANCED_GROUND_MOVEMENT_TAC_OPS_TAKING_DAMAGE, false);
