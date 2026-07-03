@@ -552,8 +552,12 @@ public class Faction2 {
     }
 
     public Boolean isUsesMercenaries(int year) {
+        if (usesMercenaries == null) {
+            return true;
+        }
+
         final Map.Entry<Integer, Boolean> isUseMercenaries = usesMercenaries.floorEntry(year);
-        return isUseMercenaries == null || usesMercenaries.get(year);
+        return usesMercenaries.get(year);
     }
 
     @Override
