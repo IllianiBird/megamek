@@ -56,6 +56,7 @@ import megamek.common.CriticalSlot;
 import megamek.common.bays.ASFBay;
 import megamek.common.bays.Bay;
 import megamek.common.bays.SmallCraftBay;
+import megamek.common.equipment.AmmoMounted;
 import megamek.common.equipment.DockingCollar;
 import megamek.common.equipment.EquipmentTypeLookup;
 import megamek.common.equipment.IArmorState;
@@ -86,6 +87,7 @@ public class UnitEditorDialog extends JDialog {
     JSpinner[] spnRear;
 
     HashMap<Integer, CheckCritPanel> equipCrits;
+    HashMap<Integer, JSpinner> ammoShots;
 
     /* system crits */ CheckCritPanel engineCrit;
     CheckCritPanel leftEngineCrit;
@@ -336,6 +338,7 @@ public class UnitEditorDialog extends JDialog {
 
     private void initEquipPanel() {
         equipCrits = new HashMap<>();
+        ammoShots = new HashMap<>();
         panEquip = new JPanel();
         panEquip.setLayout(new GridBagLayout());
         panEquip.setBorder(BorderFactory.createTitledBorder(Messages.getString("UnitEditorDialog.equipment")));
@@ -383,8 +386,38 @@ public class UnitEditorDialog extends JDialog {
             gridBagConstraints.gridx = 1;
             gridBagConstraints.weightx = 1.0;
             panEquip.add(crit, gridBagConstraints);
+
+            // For ammo bins, allow editing the number of shots remaining in the bin
+            if (mounted instanceof AmmoMounted ammo) {
+                int currentShots = ammo.getBaseShotsLeft();
+                int maxShots = maxEditableShots(ammo);
+                JSpinner spnShots = new JSpinner(new SpinnerNumberModel(currentShots, 0, maxShots, 1));
+                ammoShots.put(eqNum, spnShots);
+                gridBagConstraints.gridx = 2;
+                gridBagConstraints.weightx = 0.0;
+                gridBagConstraints.fill = GridBagConstraints.NONE;
+                panEquip.add(new JLabel(Messages.getString("UnitEditorDialog.shots")), gridBagConstraints);
+                gridBagConstraints.gridx = 3;
+                panEquip.add(spnShots, gridBagConstraints);
+            }
             gridBagConstraints.gridy++;
         }
+    }
+
+    /**
+     * Determines the maximum number of shots that the shots spinner should allow for the given ammo bin. This is the
+     * bin's full capacity: {@link Mounted#getOriginalShots()} when it is set (by-shot ammo bins), otherwise the ammo
+     * type's per-ton shot count. The current number of shots is used as a floor so that a bin already holding more
+     * shots than its nominal capacity (which should not normally happen) can still be represented by the spinner.
+     *
+     * @param ammo the ammo bin whose editable shot range is being computed
+     *
+     * @return the maximum value the shots spinner should permit
+     */
+    static int maxEditableShots(AmmoMounted ammo) {
+        int currentShots = ammo.getBaseShotsLeft();
+        int fullShots = ammo.getOriginalShots() > 0 ? ammo.getOriginalShots() : ammo.getType().getShots();
+        return Math.max(currentShots, fullShots);
     }
 
     private void initSystemPanel() {
@@ -1269,6 +1302,10 @@ public class UnitEditorDialog extends JDialog {
                     m.setHit(hits > 0);
                     entity.damageSystem(CriticalSlot.TYPE_EQUIPMENT, eqNum, hits);
                 }
+            }
+            JSpinner spnShots = ammoShots.get(eqNum);
+            if ((null != spnShots) && (m instanceof AmmoMounted ammo)) {
+                ammo.setShotsLeft((Integer) spnShots.getModel().getValue());
             }
         }
         if (entity instanceof ConvInfantry infantry) {
