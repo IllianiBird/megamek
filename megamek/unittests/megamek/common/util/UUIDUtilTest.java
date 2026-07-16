@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -30,25 +30,35 @@
  * <https://www.xbox.com/en-US/developers/rules> and it is not endorsed by or
  * affiliated with Microsoft.
  */
-package megamek.client.bot;
 
-import java.util.Deque;
+package megamek.common.util;
 
-import megamek.common.board.Coords;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Interface for classes that can plan minefield deployments.
- *
- * @author Luana Coppio
- */
-public interface MinefieldDeploymentPlanner {
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
-    /**
-     * Get a set of planed positions on the board to be used to lay minefields.
-     *
-     * @param numberOfCoords the number of positions to get
-     *
-     * @return a deque of positions
-     */
-    Deque<Coords> getRandomMinefieldPositions(int numberOfCoords);
+import org.junit.jupiter.api.Test;
+
+class UUIDUtilTest {
+    @Test
+    void generatesOneHundredThousandUniqueMonotonicUUIDs() {
+        int count = 100_000;
+        Set<UUID> generated = new HashSet<>(count);
+        UUID previous = null;
+
+        for (int i = 0; i < count; i++) {
+            UUID current = UUIDUtil.newUUIDv7();
+
+            assertEquals(7, current.version());
+            assertEquals(2, current.variant());
+            assertTrue(generated.add(current));
+            if (previous != null) {
+                assertTrue(previous.compareTo(current) < 0);
+            }
+            previous = current;
+        }
+    }
 }
