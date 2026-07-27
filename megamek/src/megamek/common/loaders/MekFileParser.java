@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2002-2004 Josh Yockey
  * Copyright © 2013 Edward Cullen (eddy@obsessedcomputers.co.uk)
- * Copyright (C) 2002-2025 The MegaMek Team. All Rights Reserved.
+ * Copyright (C) 2002-2026 The MegaMek Team. All Rights Reserved.
  *
  * This file is part of MegaMek.
  *
@@ -71,15 +71,8 @@ import megamek.common.util.fileUtils.MegaMekFile;
 import megamek.common.verifier.TestInfantry;
 import megamek.common.weapons.lasers.clan.CLChemicalLaserWeapon;
 import megamek.common.weapons.ppc.clan.CLERPPC;
-import megamek.common.weapons.ppc.clan.CLEnhancedPPC;
-import megamek.common.weapons.ppc.clan.CLImprovedPPC;
-import megamek.common.weapons.ppc.innerSphere.ISERPPC;
-import megamek.common.weapons.ppc.innerSphere.ISHeavyPPC;
-import megamek.common.weapons.ppc.innerSphere.ISKinsSlaughterPPC;
-import megamek.common.weapons.ppc.innerSphere.ISLightPPC;
-import megamek.common.weapons.ppc.innerSphere.ISPPC;
-import megamek.common.weapons.ppc.innerSphere.ISSnubNosePPC;
 import megamek.logging.MMLogger;
+import static megamek.common.equipment.WeaponType.F_PPC_CAPACITOR_COMPATIBLE;
 
 /**
  * Switches between the various type-specific parsers depending on suffix
@@ -90,6 +83,11 @@ public class MekFileParser {
     private Entity m_entity = null;
     private static Vector<String> canonUnitNames = null;
     public static final String FILENAME_OFFICIAL_UNITS = "OfficialUnitList.txt"; // TODO : Remove inline filename
+
+    static boolean canLinkPpcCapacitor(WeaponType weaponType, int year) {
+        return weaponType.hasFlag(F_PPC_CAPACITOR_COMPATIBLE)
+              && (!(weaponType instanceof CLERPPC) || year >= 3101);
+    }
 
     public MekFileParser(File f) throws EntityLoadingException {
         this(f, null);
@@ -192,6 +190,26 @@ public class MekFileParser {
      */
     public static void setCanonUnitNames(Vector<String> unitNames) {
         canonUnitNames = unitNames;
+    }
+
+    /**
+     * Tests whether a unit name is on the official canon unit list.
+     * <p>
+     * Callers that hold an {@link megamek.common.units.Entity} usually want {@link
+     * megamek.common.units.Entity#isCanon()} instead. That flag is stamped when the unit is loaded, so it goes stale
+     * the moment an editor renames the unit; ask this method when the name may have changed since the load.
+     * </p>
+     *
+     * @param unitName the unit's short name, as returned by {@code Entity.getShortNameRaw()}
+     *
+     * @return {@code true} if the name is a canon unit
+     */
+    public static boolean isCanonUnitName(String unitName) {
+        if (canonUnitNames == null) {
+            initCanonUnitNames();
+        }
+
+        return Collections.binarySearch(canonUnitNames, unitName) >= 0;
     }
 
     public Entity getEntity() {
@@ -458,13 +476,7 @@ public class MekFileParser {
                     // check location
                     if (mWeapon.getLocation() == m.getLocation()) {
 
-                        // Only Legal IS PPC's are allowed.
-                        if ((mWeapon.getType() instanceof ISPPC) ||
-                              (mWeapon.getType() instanceof ISLightPPC) ||
-                              (mWeapon.getType() instanceof ISHeavyPPC) ||
-                              (mWeapon.getType() instanceof ISERPPC) ||
-                              (mWeapon.getType() instanceof ISSnubNosePPC) ||
-                              (mWeapon.getType() instanceof CLERPPC && ent.getYear() >= 3101)) {
+                        if (canLinkPpcCapacitor(weaponType, ent.getYear())) {
                             m.setLinked(mWeapon);
                             break;
                         }
@@ -609,13 +621,7 @@ public class MekFileParser {
 
                             // check location
                             if (bayMountedWeapon.getLocation() == m.getLocation()) {
-                                // Only Legal IS PPC's are allowed.
-                                if ((bayWeaponType instanceof ISPPC) ||
-                                      (bayWeaponType instanceof ISLightPPC) ||
-                                      (bayWeaponType instanceof ISHeavyPPC) ||
-                                      (bayWeaponType instanceof ISERPPC) ||
-                                      (bayWeaponType instanceof ISSnubNosePPC) ||
-                                      (bayWeaponType instanceof CLERPPC && ent.getYear() >= 3101)) {
+                                if (canLinkPpcCapacitor(bayWeaponType, ent.getYear())) {
 
                                     m.setCrossLinked(bayMountedWeapon);
                                     break;
@@ -632,16 +638,7 @@ public class MekFileParser {
                     // check location
                     if (mWeapon.getLocation() == m.getLocation()) {
 
-                        // Only Legal IS PPC's are allowed.
-                        if ((mWeapon.getType() instanceof ISPPC) ||
-                              (mWeapon.getType() instanceof ISLightPPC) ||
-                              (mWeapon.getType() instanceof ISHeavyPPC) ||
-                              (mWeapon.getType() instanceof ISERPPC) ||
-                              (mWeapon.getType() instanceof ISSnubNosePPC) ||
-                              (mWeapon.getType() instanceof CLEnhancedPPC) ||
-                              (mWeapon.getType() instanceof CLImprovedPPC) ||
-                              (mWeapon.getType() instanceof ISKinsSlaughterPPC) ||
-                              (mWeapon.getType() instanceof CLERPPC && ent.getYear() >= 3101)) {
+                        if (canLinkPpcCapacitor(weaponType, ent.getYear())) {
 
                             m.setCrossLinked(mWeapon);
                             break;
@@ -805,15 +802,7 @@ public class MekFileParser {
         }
 
         // Check if it's canon; if it is, mark it as such.
-        ent.setCanon(false);// Guilty until proven innocent
-        if (canonUnitNames == null) {
-            initCanonUnitNames();
-        }
-
-        int index = Collections.binarySearch(canonUnitNames, ent.getShortNameRaw());
-        if (index >= 0) {
-            ent.setCanon(true);
-        }
+        ent.setCanon(isCanonUnitName(ent.getShortNameRaw()));
         ent.initMilitary();
         linkDumpers(ent);
     }
@@ -834,14 +823,17 @@ public class MekFileParser {
               .stream()
               .filter(mounted -> mounted.is(EquipmentTypeLookup.CARGO))
               .collect(Collectors.toList());
-        cargos.forEach(cargo -> cargo.setLinkedBy(null));
+        for (Mounted<?> cargo : cargos) {
+            if (cargo.getLinkedBy() != null) {
+                cargo.getLinkedBy().setLinked(null);
+            }
+        }
 
         for (Mounted<?> dumper : dumpers) {
             dumper.setLinked(null);
             for (Mounted<?> cargo : cargos) {
                 if ((cargo.getLinkedBy() == null) && (cargo.getLocation() == dumper.getLocation())) {
                     dumper.setLinked(cargo);
-                    cargo.setLinkedBy(dumper);
                     break;
                 }
             }
