@@ -45,15 +45,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.Vector;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -67,6 +59,7 @@ import megamek.client.ui.clientGUI.tooltip.PilotToolTip;
 import megamek.client.ui.tileset.TilesetManager;
 import megamek.client.ui.util.UIUtil;
 import megamek.common.Hex;
+import megamek.common.IndustrialElevator;
 import megamek.common.Player;
 import megamek.common.Report;
 import megamek.common.SpecialHexDisplay;
@@ -91,6 +84,7 @@ import megamek.common.equipment.ICarryable;
 import megamek.common.equipment.Minefield;
 import megamek.common.equipment.Mounted;
 import megamek.common.event.GameCFREvent;
+import megamek.common.event.GamePollEvent;
 import megamek.common.event.GameReportEvent;
 import megamek.common.event.GameSettingsChangeEvent;
 import megamek.common.event.GameVictoryEvent;
@@ -114,6 +108,7 @@ import megamek.common.planetaryConditions.PlanetaryConditions;
 import megamek.common.preference.PreferenceManager;
 import megamek.common.turns.UnloadStrandedTurn;
 import megamek.common.units.Crew;
+import megamek.common.units.DamageEditSpec;
 import megamek.common.units.DemolitionCharge;
 import megamek.common.units.Entity;
 import megamek.common.units.EntitySelector;
@@ -124,6 +119,7 @@ import megamek.common.util.C3Util;
 import megamek.common.util.ImageUtil;
 import megamek.common.util.SerializationHelper;
 import megamek.common.util.StringUtil;
+import megamek.common.voting.Poll;
 import megamek.logging.MMLogger;
 import megamek.server.SmokeCloud;
 
@@ -395,6 +391,14 @@ public class Client extends AbstractClient {
     }
 
     /**
+     * Asks the server to build the game board from the current map settings and broadcast it to all clients while
+     * still in the lobby, so that all players can see the battlefield that will actually be played.
+     */
+    public void sendLobbyBoardGenerationRequest() {
+        send(new Packet(PacketCommand.LOBBY_GENERATE_BOARD));
+    }
+
+    /**
      * Sends a "reroll initiative" message to the server.
      */
     public void sendRerollInitiativeRequest() {
@@ -479,6 +483,11 @@ public class Client extends AbstractClient {
      * Sends an "update entity" packet
      */
     public void sendUpdateEntity(Entity entity) {
+        LOGGER.debug("Sending update for {} (id {}): heat {}, destroyed {}",
+              entity.getDisplayName(),
+              entity.getId(),
+              entity.heat,
+              entity.isDestroyed());
         send(new Packet(PacketCommand.ENTITY_UPDATE, entity));
     }
 
@@ -487,6 +496,16 @@ public class Client extends AbstractClient {
      */
     public void sendUpdateEntity(Collection<Entity> entities) {
         send(new Packet(PacketCommand.ENTITY_MULTI_UPDATE, entities));
+    }
+
+    /**
+     * Sends a gamemaster's damage editor edits for the server to apply to its own copy of the unit. Unlike
+     * {@link #sendUpdateEntity(Entity)} this carries only the edited values, so the server's unit keeps every piece of
+     * state the editor does not touch.
+     */
+    public void sendDamageEdit(DamageEditSpec spec) {
+        LOGGER.debug("Sending damage edits for unit id {}", spec.entityId);
+        send(new Packet(PacketCommand.ENTITY_DAMAGE_EDIT, spec));
     }
 
     /**
@@ -530,6 +549,17 @@ public class Client extends AbstractClient {
      */
     public void sendTowEntity(int id, int tractorId) {
         send(new Packet(PacketCommand.ENTITY_TOW, id, tractorId));
+    }
+
+    /**
+     * Sends a "build train" packet, connecting a tractor and several trailers in one operation. The server validates
+     * the whole chain and applies it in full or not at all, so a rejected request leaves every unit unattached.
+     *
+     * @param tractorId  the powered tractor that will head the train
+     * @param trailerIds the trailers to hitch behind it, ordered front to back
+     */
+    public void sendBuildTrain(int tractorId, List<Integer> trailerIds) {
+        send(new Packet(PacketCommand.ENTITY_BUILD_TRAIN, tractorId, new ArrayList<>(trailerIds)));
     }
 
     public void sendExplodeBuilding(DemolitionCharge charge) {
@@ -677,20 +707,47 @@ public class Client extends AbstractClient {
         Entity entity = game.getEntity(packet.getIntValue(0));
 
         if (entity != null) { // we may not have this entity due to double-blind
+            // Capture the observable state; the isVisibleToEnemy/isDetectedByEnemy getters are not plain field
+            // reads (without double-blind they always report true), so compare them before and after applying
+            // the packet rather than against the raw packet values
+            boolean oldEverSeenByEnemy = entity.isEverSeenByEnemy();
+            boolean oldVisibleToEnemy = entity.isVisibleToEnemy();
+            boolean oldDetectedByEnemy = entity.isDetectedByEnemy();
+            Vector<Player> oldWhoCanSee = entity.getWhoCanSee();
+            Vector<Player> oldWhoCanDetect = entity.getWhoCanDetect();
+
             entity.setEverSeenByEnemy(packet.getBooleanValue(1));
             entity.setVisibleToEnemy(packet.getBooleanValue(2));
             entity.setDetectedByEnemy(packet.getBooleanValue(3));
             entity.setWhoCanSee(packet.getPlayerVector(4));
             entity.setWhoCanDetect(packet.getPlayerVector(5));
 
-            // this next call is only needed sometimes, but we'll just call it everytime
-            game.processGameEvent(new GameEntityChangeEvent(this, entity));
+            // The server also sends indicators that carry no change; only notify listeners when the visibility
+            // state in fact changed, as each change event makes the UI redo entity sprites and images
+            boolean changed = (entity.isEverSeenByEnemy() != oldEverSeenByEnemy)
+                  || (entity.isVisibleToEnemy() != oldVisibleToEnemy)
+                  || (entity.isDetectedByEnemy() != oldDetectedByEnemy)
+                  || !Objects.equals(entity.getWhoCanSee(), oldWhoCanSee)
+                  || !Objects.equals(entity.getWhoCanDetect(), oldWhoCanDetect);
+
+            if (changed) {
+                game.processGameEvent(new GameEntityChangeEvent(this, entity));
+            }
         }
     }
 
     protected void receiveUpdateGroundObjects(Packet packet) throws InvalidPacketDataException {
         game.setGroundObjects(packet.getCoordsWithGroundObjectListMap(0));
         game.processGameEvent(new GameBoardChangeEvent(this));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void receiveUpdateIndustrialElevators(Packet packet) {
+        Object data = packet.getObject(0);
+        if (data instanceof Collection) {
+            Collection<IndustrialElevator> elevators = (Collection<IndustrialElevator>) data;
+            game.setIndustrialElevators(elevators);
+        }
     }
 
     protected void receiveDeployMinefields(Packet packet) throws InvalidPacketDataException {
@@ -1059,6 +1116,9 @@ public class Client extends AbstractClient {
                 case UPDATE_GROUND_OBJECTS:
                     receiveUpdateGroundObjects(packet);
                     break;
+                case UPDATE_INDUSTRIAL_ELEVATORS:
+                    receiveUpdateIndustrialElevators(packet);
+                    break;
                 case ADD_SMOKE_CLOUD:
                     SmokeCloud cloud = packet.getSmokeCloud(0);
 
@@ -1168,6 +1228,11 @@ public class Client extends AbstractClient {
                         game.setOptions(options);
                     }
 
+                    break;
+                case GAME_MASTER_POLL:
+                    if (packet.getObject(0) instanceof Poll poll) {
+                        game.processGameEvent(new GamePollEvent(this, poll));
+                    }
                     break;
                 case SENDING_MAP_SETTINGS:
                     MapSettings mapSettings = packet.getMapSettings(0);
@@ -1505,10 +1570,14 @@ public class Client extends AbstractClient {
     }
 
     /**
-     * Send called shot change data to the server
+     * Send called shot change data to the server.
+     *
+     * @param entityId     the id of the entity whose weapon is changing
+     * @param equipmentNum the equipment number of the weapon
+     * @param calledShot   the new called shot, one of the {@link megamek.common.CalledShot} CALLED_ constants
      */
-    public void sendCalledShotChange(int nEntity, int nEquip) {
-        send(new Packet(PacketCommand.ENTITY_CALLED_SHOT_CHANGE, nEntity, nEquip));
+    public void sendCalledShotChange(int entityId, int equipmentNum, int calledShot) {
+        send(new Packet(PacketCommand.ENTITY_CALLED_SHOT_CHANGE, entityId, equipmentNum, calledShot));
     }
 
     /**
@@ -1520,10 +1589,17 @@ public class Client extends AbstractClient {
     }
 
     /**
-     * Send mode-change data to the server
+     * Send ammo-change data to the server.
+     *
+     * @param entityId      the unit that owns the weapon being reloaded
+     * @param weaponId      the equipment number of the weapon on that unit
+     * @param ammoId        the equipment number of the ammo bin on the carrying unit
+     * @param ammoCarrierId the unit that owns the ammo bin. This is the same as entityId unless the bin belongs to a
+     *                      directly connected trailer sharing ammo with this unit.
+     * @param reason        the report message id explaining the change, or 0 for no report
      */
-    public void sendAmmoChange(int nEntity, int nWeapon, int nAmmo, int reason) {
-        send(new Packet(PacketCommand.ENTITY_AMMO_CHANGE, nEntity, nWeapon, nAmmo, reason));
+    public void sendAmmoChange(int entityId, int weaponId, int ammoId, int ammoCarrierId, int reason) {
+        send(new Packet(PacketCommand.ENTITY_AMMO_CHANGE, entityId, weaponId, ammoId, ammoCarrierId, reason));
     }
 
     /**

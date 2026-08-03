@@ -252,6 +252,8 @@ public abstract class Entity extends TurnOrdered
 
     public static final long ETYPE_COMBAT_VEHICLE_ESCAPE_POD = 1L << 31;
 
+    public static final long ETYPE_BATTLEFIELD_SUPPORT_ASSET = 1L << 32;
+
     public static final int BLOOD_STALKER_TARGET_CLEARED = -2;
 
     public static final int LOC_NONE = -1;
@@ -1341,6 +1343,8 @@ public abstract class Entity extends TurnOrdered
                 }
             }
         }
+        // Weapons may be linked to a connected trailer's ammo bin, which arrives here as a detached copy.
+        TrainAmmoSharing.relinkExternalAmmo(this, game);
     }
 
     /**
@@ -5067,26 +5071,11 @@ public abstract class Entity extends TurnOrdered
                 return;
             }
         }
-        // Check the unit towing this one for ammo
-        if (getTowedBy() != Entity.NONE) {
-            Entity ahead = game.getEntity(getTowedBy());
-            if (ahead != null) {
-                for (AmmoMounted towedByAmmo : ahead.getAmmo()) {
-                    if (loadWeaponWithSameAmmo(mounted, towedByAmmo)) {
-                        return;
-                    }
-                }
-            }
-        }
-        // Then check the unit towed by this one for ammo
-        if (getTowing() != Entity.NONE) {
-            Entity behind = game.getEntity(getTowing());
-            if (behind != null) {
-                for (AmmoMounted towingAmmo : behind.getAmmo()) {
-                    if (loadWeaponWithSameAmmo(mounted, towingAmmo)) {
-                        return;
-                    }
-                }
+        // Then the units coupled to this one. Uses the same rule as the ammo dropdown and the server's validation,
+        // so the automatic reload cannot reach bins the player is not offered, or miss ones they are.
+        for (AmmoMounted trainAmmo : TrainAmmoSharing.getSharedAmmo(this)) {
+            if (loadWeaponWithSameAmmo(mounted, trainAmmo)) {
+                return;
             }
         }
         // fall back to use any ammo
@@ -6453,7 +6442,10 @@ public abstract class Entity extends TurnOrdered
         if (!isShutDown()) {
             for (MiscMounted m : getMisc()) {
                 MiscType type = m.getType();
-                if (type.hasFlag(MiscType.F_ECM) && !m.isInoperable()) {
+                if (type == null) {
+                    continue;
+                }
+                if (type.hasFlag(MiscType.F_ECM) && !m.isInoperable() && !m.isModeTurnedOff()) {
                     if (type.hasFlag(MiscType.F_SINGLE_HEX_ECM)) {
                         return 0;
                     }
@@ -6494,11 +6486,14 @@ public abstract class Entity extends TurnOrdered
             return false;
         }
         for (MiscMounted m : getMisc()) {
-            if (m.getType().hasFlag(MiscType.F_BAP)) {
+            MiscType type = m.getType();
+            if ((type != null) && type.hasFlag(MiscType.F_BAP)) {
 
-                if (!m.isInoperable()) {
+                // A probe the player has switched off provides no sensing (activation/deactivation rules); for a
+                // Watchdog/Nova CEWS the shared "Off" mode silences the probe half along with the rest of the suite.
+                if (!m.isInoperable() && !m.isModeTurnedOff()) {
                     // Beagle Isn't affected by normal ECM
-                    if (m.getType().getName().equals("Beagle Active Probe")) {
+                    if (type.getName().equals("Beagle Active Probe")) {
                         return (game == null) ||
                               !checkECM ||
                               !ComputeECM.isAffectedByAngelECM(this, getPosition(), getPosition());
@@ -6594,7 +6589,10 @@ public abstract class Entity extends TurnOrdered
 
         for (MiscMounted m : getMisc()) {
             MiscType type = m.getType();
-            if (type.hasFlag(MiscType.F_BAP) && !m.isInoperable()) {
+            if (type == null) {
+                continue;
+            }
+            if (type.hasFlag(MiscType.F_BAP) && !m.isInoperable() && !m.isModeTurnedOff()) {
                 // Quirk bonus is only 2 if equipped with BAP
                 if (quirkBonus > 0) {
                     quirkBonus = 2;
@@ -6608,20 +6606,20 @@ public abstract class Entity extends TurnOrdered
                 if (m.getName().equals("Bloodhound Active Probe (THB)") || m.getName().equals(Sensor.BAP)) {
                     return 8 + cyberProbeBonus + quirkBonus + spaBonus;
                 }
-                if ((m.getType()).getInternalName().equals(Sensor.CLAN_AP) ||
-                      (m.getType()).getInternalName().equals(Sensor.WATCHDOG) ||
-                      (m.getType()).getInternalName().equals(Sensor.NOVA) ||
-                      (m.getType()).getInternalName().equals(Sensor.CL_BA_LIGHT_AP)) {
+                String internalName = type.getInternalName();
+                if (internalName.equals(Sensor.CLAN_AP) ||
+                      internalName.equals(Sensor.WATCHDOG) ||
+                      internalName.equals(Sensor.NOVA) ||
+                      internalName.equals(Sensor.CL_BA_LIGHT_AP)) {
                     return 5 + cyberProbeBonus + quirkBonus + spaBonus;
                 }
-                if ((m.getType()).getInternalName().equals(Sensor.LIGHT_AP)) {
+                if (internalName.equals(Sensor.LIGHT_AP)) {
                     return 3 + cyberProbeBonus + quirkBonus + spaBonus;
                 }
-                if ((m.getType()).getInternalName().equals(Sensor.IS_BA_LIGHT_AP)) {
+                if (internalName.equals(Sensor.IS_BA_LIGHT_AP)) {
                     return 4 + cyberProbeBonus + quirkBonus + spaBonus;
                 }
-                if (m.getType().getInternalName().equals(Sensor.IS_IMPROVED) ||
-                      (m.getType().getInternalName().equals(Sensor.CL_IMPROVED))) {
+                if (internalName.equals(Sensor.IS_IMPROVED) || internalName.equals(Sensor.CL_IMPROVED)) {
                     return 2 + cyberProbeBonus + quirkBonus + spaBonus;
                 }
                 return 4 + cyberProbeBonus + quirkBonus + spaBonus;// everything else should be
@@ -6932,22 +6930,28 @@ public abstract class Entity extends TurnOrdered
     }
 
     /**
-     * @return True if this unit has an active Nova CEWS that can communicate. Returns false if the unit is shutdown,
-     *       off board, or the Nova CEWS is inoperable/offline.
+     * @return True if this unit has an active Nova CEWS that can communicate. Returns {@code false} if the unit is
+     *       shutdown, off board, or the Nova CEWS is inoperable or switched to "Off" by the player.
      */
     public boolean hasActiveNovaCEWS() {
         if (isShutDown() || isOffBoard()) {
             return false;
-        } else {
-            return getMisc().stream()
-                  .filter(Mounted::isOperable)
-                  .anyMatch(m -> m.getType().hasFlag(MiscType.F_NOVA));
         }
+        for (MiscMounted mounted : getMisc()) {
+            MiscType miscType = mounted.getType();
+            if ((miscType != null) && miscType.hasFlag(MiscType.F_NOVA)
+                  && mounted.isOperable() && !mounted.isModeTurnedOff()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * @return True if this unit has a Nova CEWS that can network (not destroyed/breached, not shutdown, not offboard).
-     *       Does NOT check ECM mode - networking works regardless of Off/ECM mode setting.
+     *       Does NOT check the "Off" mode - network membership (net id, partner UUIDs) survives deactivation so the
+     *       previous network is restored when the CEWS is switched back on; use {@link #hasActiveNovaCEWS()} for
+     *       whether the system currently functions.
      */
     public boolean hasNovaCEWS() {
         if (isShutDown() || isOffBoard()) {
@@ -7023,7 +7027,8 @@ public abstract class Entity extends TurnOrdered
                 c3NetIdString = "C3" + C3_NETWORK_ID_SEPARATOR + getId();
             } else if (hasC3i()) {
                 c3NetIdString = "C3i" + C3_NETWORK_ID_SEPARATOR + getId();
-            } else if (hasActiveNovaCEWS()) {
+            } else if (hasNovaCEWS()) {
+                // presence-based so a Nova switched to "Off" still establishes its network identity
                 c3NetIdString = "C3Nova" + C3_NETWORK_ID_SEPARATOR + getId();
             } else if (hasNavalC3()) {
                 c3NetIdString = "NC3" + C3_NETWORK_ID_SEPARATOR + getId();
@@ -7487,6 +7492,13 @@ public abstract class Entity extends TurnOrdered
             return false;
         }
 
+        // A unit whose C3 gear is switched off provides and receives no network benefit. The ignoreECM path is
+        // deliberately NOT gated: it is used to record network membership (save files, network wiring), which must
+        // survive deactivation so the previous network is restored when the gear is switched back on.
+        if (!ignoreECM && (EquipmentActivation.isC3SwitchedOff(this) || EquipmentActivation.isC3SwitchedOff(e))) {
+            return false;
+        }
+
         // C3i is easy - if they both have C3i, and their net ID's match,
         // they're on the same network!
         if (hasC3i() && e.hasC3i() && getC3NetId().equals(e.getC3NetId())) {
@@ -7517,8 +7529,9 @@ public abstract class Entity extends TurnOrdered
         }
 
         // Nova is easy - if they both have Nova, and their net ID's match, they're on the same network! At least I
-        // hope that's how it works.
-        if (hasActiveNovaCEWS() && e.hasActiveNovaCEWS() && getC3NetId().equals(e.getC3NetId())) {
+        // hope that's how it works. Membership is presence-based (hasNovaCEWS): a switched-off Nova stays a network
+        // member for serialization/wiring purposes, while the benefit cut-off is handled by the gate above.
+        if (hasNovaCEWS() && e.hasNovaCEWS() && getC3NetId().equals(e.getC3NetId())) {
             if (ignoreECM) {
                 return true;
             }
@@ -7722,6 +7735,11 @@ public abstract class Entity extends TurnOrdered
         // update fatigue count
         if ((null != crew) && isDeployed()) {
             crew.incrementFatigueCount();
+        }
+
+        // count down any temporary gamemaster skill modifiers, which clear themselves when their time runs out
+        if (null != crew) {
+            crew.getSkillModifiers().newRound();
         }
 
         // Update the inferno tracker.
@@ -8391,10 +8409,15 @@ public abstract class Entity extends TurnOrdered
                   "Reactor shut down");
         }
 
-        // okay, let's figure out the stuff then
+        // okay, let's figure out the stuff then. A gamemaster's temporary modifier is taken back out of the skill
+        // and shown as a line of its own, so a shifted target can be traced to the gamemaster's intervention.
+        int gamemasterModifier = getCrew().appliedPilotingModifier(moveType);
         roll = new PilotingRollData(entityId,
-              getCrew().getPiloting(moveType),
+              getCrew().getPiloting(moveType) - gamemasterModifier,
               (this instanceof Infantry) ? "Anti-Mek skill" : "Base piloting skill");
+        if (gamemasterModifier != 0) {
+            roll.addModifier(gamemasterModifier, "GM Modifier");
+        }
 
         // Let's see if we have a modifier to our piloting skill roll. We'll pass in the roll object and adjust as necessary
         roll = addEntityBonuses(roll);
@@ -10836,9 +10859,31 @@ public abstract class Entity extends TurnOrdered
 
     /**
      * Returns true if the entity should be deployed
+     * <p>
+     * A trailer that is part of a train does not deploy on its own. It is placed with the rest of the train when its
+     * tractor deploys, in the same way a carried unit is placed with its transport. An unattached trailer still
+     * deploys normally.
+     * </p>
      */
     public boolean shouldDeploy(int round) {
-        return !isDeployed() && (getDeployRound() <= round) && !isOffBoard();
+        return !isDeployed() && (getDeployRound() <= round) && !isOffBoard() && !deploysWithTractor();
+    }
+
+    /**
+     * Whether this unit is placed by the tractor towing it rather than deploying on its own.
+     * <p>
+     * Only {@code true} when that tractor is itself deploying onto the board. A tractor that starts off board never
+     * takes a deployment turn, so its trailers have to deploy themselves or they would never reach the game at all.
+     * </p>
+     *
+     * @return {@code true} when a tractor will place this unit during its own deployment
+     */
+    private boolean deploysWithTractor() {
+        if ((getTractor() == Entity.NONE) || (game == null)) {
+            return false;
+        }
+        Entity tractor = game.getEntity(getTractor());
+        return (tractor != null) && !tractor.isOffBoard();
     }
 
     /**
@@ -12161,16 +12206,18 @@ public abstract class Entity extends TurnOrdered
         if (!(armType.startsWith("Clan ") || armType.startsWith("IS "))) {
             armType = (TechConstants.isClan(getArmorTechLevel(0)) ? "Clan " : "IS ") + armType;
         }
-        EquipmentType et = EquipmentType.get(armType);
-        if (!(et instanceof ArmorType newArmorType)) {
+        ArmorType newArmorType = EquipmentType.getArmorFromName(armType);
+        if (newArmorType == null) {
             setArmorType(EquipmentType.T_ARMOR_UNKNOWN);
         } else {
             setArmorType(newArmorType.getArmorType());
-            setArmorTechLevel(newArmorType.getStaticTechLevel().getCompoundTechLevel(newArmorType.isClan()));
+            if (!newArmorType.isMixedTech()) {
+                setArmorTechLevel(newArmorType.getStaticTechLevel().getCompoundTechLevel(newArmorType.isClan()));
+            }
             // TODO: Is this needed? WTF is the point of it?
-            if (et.getNumCriticalSlots(this) == 0) {
+            if (newArmorType.getNumCriticalSlots(this) == 0) {
                 try {
-                    addEquipment(et, LOC_NONE);
+                    addEquipment(newArmorType, LOC_NONE);
                 } catch (Exception e) {
                     // can't happen
                     LOGGER.error("", e);
@@ -12184,15 +12231,15 @@ public abstract class Entity extends TurnOrdered
         if (!(armType.startsWith("Clan ") || armType.startsWith("IS "))) {
             armType = (TechConstants.isClan(getArmorTechLevel(0)) ? "Clan " : "IS ") + armType;
         }
-        EquipmentType et = EquipmentType.get(armType);
-        if (et == null) {
+        ArmorType armorType = EquipmentType.getArmorFromName(armType);
+        if (armorType == null) {
             setArmorType(EquipmentType.T_ARMOR_UNKNOWN, loc);
         } else {
-            setArmorType(EquipmentType.getArmorType(et), loc);
+            setArmorType(armorType.getArmorType(), loc);
             // TODO: Is this needed? WTF is the point of it?
-            if (et.getNumCriticalSlots(this) == 0) {
+            if (armorType.getNumCriticalSlots(this) == 0) {
                 try {
-                    addEquipment(et, LOC_NONE);
+                    addEquipment(armorType, LOC_NONE);
                 } catch (Exception e) {
                     // can't happen
                     LOGGER.error("", e);
@@ -12203,22 +12250,29 @@ public abstract class Entity extends TurnOrdered
     }
 
     public void setStructureType(String structureType) {
-        if (!(structureType.startsWith("Clan ") || structureType.startsWith("IS "))) {
-            structureType = (isClan() ? "Clan " : "IS ") + structureType;
+        boolean clanStructure = isClan();
+        if (structureType.startsWith("Clan ")) {
+            clanStructure = true;
+        } else if (structureType.startsWith("IS ")) {
+            clanStructure = false;
+        } else {
+            structureType = (clanStructure ? "Clan " : "IS ") + structureType;
         }
         if (!(structureType.endsWith("Structure"))) {
             structureType += " Structure";
         }
-        EquipmentType et = EquipmentType.get(structureType);
-        setStructureType(EquipmentType.getStructureType(et));
-        if (et == null) {
+        StructureType structure = EquipmentType.getStructureFromName(structureType);
+        setStructureType(EquipmentType.getStructureType(structure));
+        if (structure == null) {
             structureTechLevel = TechConstants.T_TECH_UNKNOWN;
         } else {
-            structureTechLevel = et.getTechLevel(year);
+            structureTechLevel = structure.isMixedTech()
+                  ? structure.getTechLevel(year, clanStructure)
+                  : structure.getTechLevel(year);
             // TODO: Is this needed? WTF is the point of it?
-            if (et.getNumCriticalSlots(this) == 0) {
+            if (structure.getNumCriticalSlots(this) == 0) {
                 try {
-                    addEquipment(et, LOC_NONE);
+                    addEquipment(structure, LOC_NONE);
                 } catch (Exception e) {
                     // can't happen
                     LOGGER.error("", e);
@@ -13063,6 +13117,28 @@ public abstract class Entity extends TurnOrdered
     }
 
     /**
+     * Returns whether this unit can be hidden at all (hidden units, TW pg 259): a unit in the air cannot, and unit
+     * types that can never hide override this. Whether it is currently hidden is {@link #isHidden()}.
+     */
+    public boolean canHide() {
+        return !isAirborne() && !isAirborneVTOLorWIGE();
+    }
+
+    /**
+     * Returns whether this unit's crew could leave it now: eject or abandon, the way the server's abandonEntity
+     * resolves it. False here; the unit types whose crews can leave override it, each with its own conditions on
+     * top of the shared {@link #crewCanLeave()}.
+     */
+    public boolean canEjectCrew() {
+        return false;
+    }
+
+    /** Shared by the {@link #canEjectCrew()} overrides: a crew can only leave while it is aboard and alive. */
+    protected boolean crewCanLeave() {
+        return (getCrew() != null) && !getCrew().isEjected() && !getCrew().isDead();
+    }
+
+    /**
      * @return True if this unit has already made a pointblank shot this round.
      */
     public boolean madePointblankShot() {
@@ -13756,6 +13832,7 @@ public abstract class Entity extends TurnOrdered
                 String[] stringArray = {};
                 modes.add("Short");
                 modes.add("Medium");
+                modes.add(Mounted.MODE_OFF);
                 misc.getType().setModes(modes.toArray(stringArray));
                 misc.getType().setInstantModeSwitch(false);
             }
@@ -13763,7 +13840,7 @@ public abstract class Entity extends TurnOrdered
             // Nova CEWS has built-in "ECM"/"Off" modes - don't override them with dynamic modes
             if (misc.getType().hasFlag(MiscType.F_ECM) && !misc.getType().hasFlag(MiscType.F_NOVA)) {
                 ArrayList<String> modes = new ArrayList<>();
-                modes.add("ECM");
+                modes.add(MiscType.MODE_ECM);
                 String[] stringArray = {};
                 if (gameOpts.booleanOption(OptionsConstants.ADVANCED_TAC_OPS_ECCM)) {
                     modes.add("ECCM");
@@ -13788,6 +13865,11 @@ public abstract class Entity extends TurnOrdered
                         modes.add("Ghost Targets");
                     }
                 }
+
+                // ECM suites can be deactivated (activation/deactivation rules). These types are built
+                // with setInstantModeSwitch(false), so every mode switch here -- deactivation included --
+                // is declared now and takes effect in the End Phase. Nothing registers an end-turn mode.
+                modes.add(Mounted.MODE_OFF);
 
                 misc.getType().setModes(modes.toArray(stringArray));
             }
@@ -17155,48 +17237,74 @@ public abstract class Entity extends TurnOrdered
         // If none of the above happen, assume that we can't tow the trailer...
         boolean result = false;
 
-        // First, set up a list of all the entities in this train
+        // First, set up a list of all the entities in this train. A towed id can fail to resolve when the unit has
+        // been destroyed and removed, so skip those rather than carrying nulls through the checks below.
         ArrayList<Entity> thisTrain = new ArrayList<>();
         thisTrain.add(this);
-        for (int id : getAllTowedUnits()) {
-            Entity tr = game.getEntity(id);
-            thisTrain.add(tr);
+        for (int towedId : getAllTowedUnits()) {
+            Entity towedUnit = game.getEntity(towedId);
+            if (towedUnit != null) {
+                thisTrain.add(towedUnit);
+            }
+        }
+
+        // The towing limit belongs to the powered tractor at the head of the train, not to whichever unit the new
+        // trailer is being hitched to: "Tractors may pull one or more Trailers whose combined weight is less than or
+        // equal to the Tractor's own weight" (TM, Tractors). When a trailer is the attach point, its own tonnage is
+        // irrelevant - what matters is what the tractor pulling the whole train can handle.
+        Entity poweredTractor = this;
+        if (getTractor() != Entity.NONE) {
+            Entity trainTractor = game.getEntity(getTractor());
+            if (trainTractor != null) {
+                poweredTractor = trainTractor;
+            }
         }
 
         // Add up the weight of all carried trailers. A tractor can tow a total tonnage equal to its own.
-        double tractorWeight = getWeight();
+        double tractorWeight = poweredTractor.getWeight();
         double trailerWeight = 0;
         // Add up what the tractor's already towing
-        for (int id : getAllTowedUnits()) {
-            Entity tr = game.getEntity(id);
+        for (int towedId : poweredTractor.getAllTowedUnits()) {
+            Entity towedUnit = game.getEntity(towedId);
 
-            if (tr == null) {
+            if (towedUnit == null) {
                 continue;
             }
 
-            trailerWeight += tr.getWeight();
+            trailerWeight += towedUnit.getWeight();
         }
-        if (trailerWeight + trailer.getWeight() > tractorWeight) {
+        if ((trailerWeight + trailer.getWeight()) > tractorWeight) {
             return false;
         }
 
-        // Next, look for an empty hitch somewhere in the train
-        boolean hitchFound = false;
-        for (Entity e : thisTrain) {
-            // Quit looking if we've already found a valid hitch
-            if (hitchFound) {
+        // Look for an empty hitch on the unit that will actually take the trailer. towUnit always appends at the
+        // tail, so a free hitch anywhere else in the train is not one this trailer could use, and reporting it as
+        // usable would let a tow be offered that then cannot be made.
+        Entity attachPoint = findTrainTail(thisTrain);
+        for (Transporter transporter : attachPoint.getTransports()) {
+            if (transporter.canTow(trailer)) {
+                result = true;
                 break;
-            }
-            for (Transporter t : e.getTransports()) {
-                if (t.canTow(trailer)) {
-                    result = true;
-                    hitchFound = true;
-                    // stop looking
-                    break;
-                }
             }
         }
         return result;
+    }
+
+    /**
+     * The unit at the back of a train, which is where a new trailer is hitched.
+     *
+     * @param trainMembers the tractor followed by the units it tows
+     *
+     * @return the member with nothing behind it, or the first member when the train is not linked up
+     */
+    private static Entity findTrainTail(List<Entity> trainMembers) {
+        Entity tail = trainMembers.get(0);
+        for (Entity member : trainMembers) {
+            if ((member != null) && (member.getTowing() == Entity.NONE)) {
+                tail = member;
+            }
+        }
+        return tail;
     }
 
     /**
@@ -17282,14 +17390,28 @@ public abstract class Entity extends TurnOrdered
             return;
         }
 
+        if (id == getId()) {
+            LOGGER.warn("[Train] {} cannot tow itself", getDisplayName());
+            return;
+        }
+
+        // A trailer that is somehow still listed as part of this train must not be hitched a second time: the
+        // loop below would then record it as a unit trailing itself, and disconnecting it later walks a list it
+        // is clearing as it goes.
+        if (getAllTowedUnits().contains(id)) {
+            LOGGER.warn("[Train] {} already lists {} as part of its train; the trailer was not attached again",
+                  getDisplayName(), towed.getDisplayName());
+            return;
+        }
+
         // Add this trailer to the connected list for all trailers already in this train
-        List<Integer> otherTrailerIds = getAllTowedUnits();
+        List<Integer> otherTrailerIds = new ArrayList<>(getAllTowedUnits());
         List<Entity> otherTrailers = new ArrayList<>();
 
-        for (int tr : otherTrailerIds) {
-            Entity trailer = game.getEntity(tr);
+        for (int otherTrailerId : otherTrailerIds) {
+            Entity trailer = game.getEntity(otherTrailerId);
 
-            if (trailer == null) {
+            if ((trailer == null) || (trailer == towed) || (trailer == this)) {
                 continue;
             }
 
@@ -17314,13 +17436,31 @@ public abstract class Entity extends TurnOrdered
             }
         }
 
+        // Use the first hitch that can actually take the trailer, and only that one. Loading every hitch registered
+        // the same trailer twice on a unit with both a front and a rear hitch, and calling load() unguarded would
+        // throw IllegalArgumentException on an occupied one.
+        boolean hitched = false;
         if (towingEnt != null) {
             for (Transporter transporter : towingEnt.getTransports()) {
-                if (transporter instanceof TankTrailerHitch hitch) {
+                if ((transporter instanceof TankTrailerHitch hitch) && hitch.canTow(towed)) {
                     hitch.load(towed);
                     towingEnt.setTowing(id);
                     towed.setTowedBy(towingEnt.getId());
+                    hitched = true;
+                    break;
                 }
+            }
+        }
+
+        if (!hitched) {
+            // Nothing at the back of the train can take it. Undo the membership rather than leaving a unit that
+            // counts as part of the train but has no hitch holding it.
+            LOGGER.warn("[Train] {} has no free hitch for {}; the trailer was not attached",
+                  (towingEnt == null) ? getDisplayName() : towingEnt.getDisplayName(), towed.getDisplayName());
+            removeTowedUnit(id);
+            towed.setTractor(Entity.NONE);
+            for (Entity otherTrailer : otherTrailers) {
+                otherTrailer.connectedUnits.remove(Integer.valueOf(id));
             }
         }
     }
@@ -17344,45 +17484,74 @@ public abstract class Entity extends TurnOrdered
             return;
         }
 
-        // Remove the designated trailer from the tractor's carried units
-        removeTowedUnit(id);
-        // Now, find and empty the transporter on the actual towing entity (trailer or tractor)
-        Entity towingEnt = game.getEntity(towed.getTowedBy());
-        if (towingEnt != null) {
-            towingEnt.connectedUnits.clear();
-            Transporter hitch = towingEnt.getHitchCarrying(id);
-            if (hitch != null) {
-                hitch.unload(towed);
+        // The dropped trailer and everything behind it leave the train together. Snapshot those ids before
+        // anything is detached: the bookkeeping lists are emptied as the units come off, and one of them is the
+        // list being walked.
+        List<Integer> detachedIds = new ArrayList<>();
+        detachedIds.add(id);
+        for (int trailingId : towed.getConnectedUnits()) {
+            if ((trailingId != tractor.getId()) && !detachedIds.contains(trailingId)) {
+                detachedIds.add(trailingId);
             }
         }
-        // If there are other trailers behind the one being dropped, disconnect all of them from the tractor and from
-        // each other, so they can be picked up again later
-        for (int i : towed.getConnectedUnits()) {
-            Entity trailer = game.getEntity(i);
 
-            if (trailer == null) {
+        for (int detachedId : detachedIds) {
+            // Train membership is held by the tractor heading the train, not by this entity. disconnectUnit is
+            // also called on a mid-train trailer, and dropping the membership here would leave the tractor still
+            // listing trailers it no longer tows.
+            tractor.removeTowedUnit(detachedId);
+
+            Entity detached = game.getEntity(detachedId);
+            if (detached == null) {
                 continue;
             }
 
-            trailer.setTractor(Entity.NONE);
-            tractor.removeTowedUnit(i);
-            towingEnt = game.getEntity(trailer.getTowedBy());
-
-            if (towingEnt != null) {
-                Transporter hitch = towingEnt.getHitchCarrying(i);
+            // Free the hitch this unit sits on. The unit ahead of it may be staying with the train, so clear its
+            // towing link too rather than leaving it pointing at a trailer that has gone.
+            Entity towingEntity = game.getEntity(detached.getTowedBy());
+            if (towingEntity != null) {
+                Transporter hitch = towingEntity.getHitchCarrying(detachedId);
                 if (hitch != null) {
-                    hitch.unload(trailer);
+                    hitch.unload(detached);
                 }
+                towingEntity.setTowing(Entity.NONE);
             }
 
-            trailer.setTowedBy(Entity.NONE);
-            trailer.connectedUnits.clear();
+            detached.setTractor(Entity.NONE);
+            detached.setTowedBy(Entity.NONE);
+            detached.setTowing(Entity.NONE);
+            detached.connectedUnits.clear();
         }
-        // Update these last, or we get concurrency issues
-        towed.setTractor(Entity.NONE);
-        towed.setTowedBy(Entity.NONE);
-        towed.setTowing(Entity.NONE);
-        towed.connectedUnits.clear();
+
+        // Whatever is still in the train has to forget the units that just left, or a later tow reads them back
+        // as members and hitches them a second time.
+        tractor.connectedUnits.removeAll(detachedIds);
+        for (int remainingId : tractor.getAllTowedUnits()) {
+            Entity remaining = game.getEntity(remainingId);
+
+            if (remaining != null) {
+                remaining.connectedUnits.removeAll(detachedIds);
+            }
+        }
+
+        // Weapons on either side of the split may be linked to ammo bins on the other side. Those links survive the
+        // uncoupling on their own and the firing path never re-checks them, so drop them here. This runs only after
+        // every tow field above has settled, because the check reads them to decide what is still legal.
+        TrainAmmoSharing.dropUncoupledAmmoLinks(tractor);
+        for (int remainingId : tractor.getAllTowedUnits()) {
+            Entity remaining = game.getEntity(remainingId);
+
+            if (remaining != null) {
+                TrainAmmoSharing.dropUncoupledAmmoLinks(remaining);
+            }
+        }
+        for (int detachedId : detachedIds) {
+            Entity detached = game.getEntity(detachedId);
+
+            if (detached != null) {
+                TrainAmmoSharing.dropUncoupledAmmoLinks(detached);
+            }
+        }
     }
 
     /**
