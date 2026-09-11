@@ -86,11 +86,6 @@ public class GameOptionsPane extends JPanel {
     private static final int START_HEIGHT = 800;
     private static final int HEADER_IMAGE_SIZE = 80;
     private static final int LANDING_HEADER_IMAGE_SIZE = 200;
-    private static final int MAX_VICTORY_CONDITIONS = 100;
-    private static final int MAX_VICTORY_PERCENT = 100;
-    private static final int MAX_VICTORY_RATIO_PERCENT = 10_000;
-    private static final int MAX_VICTORY_ROUNDS = 10_000;
-    private static final int MAX_VICTORY_KILLS = 10_000;
     private static final int MAX_BRIDGE_CF = 1_000;
     private static final int MAX_GHOST_TARGET_PENALTY = 10;
     private static final int MAX_WOODS_BURN_DOWN_CF = 100;
@@ -270,7 +265,8 @@ public class GameOptionsPane extends JPanel {
               getTextAt(CLIENT_BUNDLE, "GameOptionsDialog.SearchNoMatches"),
               getTextAt(CLIENT_BUNDLE, "GameOptionsDialog.SearchMatches"),
               getTextAt(CLIENT_BUNDLE, "SettingsPagePanel.expandAll.text"),
-              getTextAt(CLIENT_BUNDLE, "SettingsPagePanel.collapseAll.text"));
+              getTextAt(CLIENT_BUNDLE, "SettingsPagePanel.collapseAll.text"),
+              getTextAt(CLIENT_BUNDLE, "SettingsNavigation.searching"));
         settingsPane = new SettingsPane(routes, pageFactories, navigationText);
         add(settingsPane, BorderLayout.CENTER);
     }
@@ -306,6 +302,9 @@ public class GameOptionsPane extends JPanel {
 
     private static void configureSettingsDependencies(
           Map<String, DialogOptionComponentYPanel> componentsByName) {
+        // the victory dependents (a threshold behind its master switch) share their table with the lobby dialog
+        VictoryOptionLayout.dependencies().forEach((dependentOptionName, masterOptionName) ->
+              configureEditableDependency(componentsByName, dependentOptionName, masterOptionName));
         configureEditableDependency(componentsByName, OptionsConstants.ADVANCED_WOODS_BURN_DOWN_AMOUNT,
               OptionsConstants.ADVANCED_WOODS_BURN_DOWN);
         configureEditableDependency(componentsByName,
@@ -545,6 +544,12 @@ public class GameOptionsPane extends JPanel {
         }
 
         private static void configureSettingsControl(DialogOptionComponentYPanel component) {
+            // the victory numbers share their bounds with the lobby's Victory Conditions dialog
+            int[] victoryBounds = VictoryOptionLayout.boundsFor(component.getOption().getName());
+            if (victoryBounds != null) {
+                component.useIntegerSpinner(victoryBounds[0], victoryBounds[1]);
+                return;
+            }
             switch (component.getOption().getName()) {
                 case OptionsConstants.BASE_TURN_TIMER_TARGETING,
                      OptionsConstants.BASE_TURN_TIMER_MOVEMENT,
@@ -573,16 +578,6 @@ public class GameOptionsPane extends JPanel {
                           CapitalMissileBayWeapon.CAPITAL_MISSILE_MAX_VELOCITY);
                 case OptionsConstants.INIT_INF_PROTO_MOVE_MULTI ->
                     component.useIntegerSpinner(1, MAX_LANCE_SIZE);
-                case OptionsConstants.VICTORY_ACHIEVE_CONDITIONS ->
-                    component.useIntegerSpinner(1, MAX_VICTORY_CONDITIONS);
-                case OptionsConstants.VICTORY_BV_DESTROYED_PERCENT ->
-                    component.useIntegerSpinner(1, MAX_VICTORY_PERCENT);
-                case OptionsConstants.VICTORY_BV_RATIO_PERCENT ->
-                    component.useIntegerSpinner(1, MAX_VICTORY_RATIO_PERCENT);
-                case OptionsConstants.VICTORY_GAME_TURN_LIMIT ->
-                    component.useIntegerSpinner(1, MAX_VICTORY_ROUNDS);
-                case OptionsConstants.VICTORY_GAME_KILL_COUNT ->
-                    component.useIntegerSpinner(1, MAX_VICTORY_KILLS);
                 default -> {
                 }
             }

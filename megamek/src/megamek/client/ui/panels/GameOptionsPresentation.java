@@ -214,12 +214,18 @@ final class GameOptionsPresentation {
               OptionsConstants.VICTORY_BV_DESTROYED_PERCENT,
               OptionsConstants.VICTORY_USE_BV_RATIO,
               OptionsConstants.VICTORY_BV_RATIO_PERCENT);
+        // the two kill conditions share a row; Use Objectives follows on its own so it renders as a
+        // full-width row rather than being packed into the right-hand column where it went unseen, and
+        // the victory point settings that depend on it come straight after
         register(VICTORY, GENERAL_VICTORY_AND_GAME_MASTER, "victory.alternate",
               OptionsConstants.VICTORY_USE_GAME_TURN_LIMIT,
               OptionsConstants.VICTORY_GAME_TURN_LIMIT,
+              OptionsConstants.VICTORY_COMMANDER_KILLED,
               OptionsConstants.VICTORY_USE_KILL_COUNT,
               OptionsConstants.VICTORY_GAME_KILL_COUNT,
-              OptionsConstants.VICTORY_COMMANDER_KILLED);
+              OptionsConstants.VICTORY_USE_OBJECTIVES,
+              OptionsConstants.VICTORY_VP_WIN_THRESHOLD,
+              OptionsConstants.VICTORY_VP_SUDDEN_DEATH);
 
         register(ALLOWED_UNITS, GENERAL_UNITS_AND_TECHNOLOGY, "allowedUnits.availability",
               OptionsConstants.ALLOWED_CANON_ONLY,
@@ -285,7 +291,8 @@ final class GameOptionsPresentation {
               OptionsConstants.ADVANCED_GROUND_MOVEMENT_VEHICLES_CAN_EJECT,
               OptionsConstants.ADVANCED_GROUND_MOVEMENT_EJECTED_PILOTS_FLEE,
               OptionsConstants.ADVANCED_GROUND_MOVEMENT_AUTO_ABANDON_UNIT,
-              OptionsConstants.RPG_CONDITIONAL_EJECTION);
+              OptionsConstants.RPG_CONDITIONAL_EJECTION,
+              OptionsConstants.RPG_COMBAT_SUITS);
         register(ADVANCED_RULES, RULES_SPECIAL_SYSTEMS, "rules.specialSystems.systems",
               OptionsConstants.ADVANCED_TAC_OPS_MOBILE_HQS,
               OptionsConstants.ADVANCED_TAC_OPS_SELF_DESTRUCT,
@@ -388,6 +395,8 @@ final class GameOptionsPresentation {
               OptionsConstants.ADVANCED_COMBAT_TAC_OPS_BA_CRITICAL_SLOTS,
               OptionsConstants.ADVANCED_COMBAT_TAC_OPS_BA_VS_BA,
               OptionsConstants.ADVANCED_COMBAT_PROTOMEKS_SAFE_FROM_INFERNOS);
+        register(ADVANCED_COMBAT, COMBAT_UNITS, "combat.units.infantryActions",
+              OptionsConstants.ADVANCED_COMBAT_INFANTRY_ACTION_DEFENDER_WITHDRAWAL);
     }
 
     private static void registerGroundMovementOptions() {
@@ -502,8 +511,7 @@ final class GameOptionsPresentation {
 
         register(RPG, INITIATIVE_AND_PILOTS_ABILITIES, "rpg.core",
               OptionsConstants.RPG_PILOT_ADVANTAGES,
-              OptionsConstants.EDGE,
-              OptionsConstants.RPG_MANEI_DOMINI);
+              OptionsConstants.EDGE);
         register(RPG, INITIATIVE_AND_PILOTS_ABILITIES, "rpg.initiative",
               OptionsConstants.RPG_INDIVIDUAL_INITIATIVE,
               OptionsConstants.RPG_COMMAND_INIT);

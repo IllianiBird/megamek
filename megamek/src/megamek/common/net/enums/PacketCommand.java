@@ -270,7 +270,31 @@ public enum PacketCommand {
      * Carries the tractor id and the trailer ids, ordered front to back. The server validates the whole chain and
      * applies it in full or not at all, so a rejected request leaves every unit unattached.
      */
-    ENTITY_BUILD_TRAIN;
+    ENTITY_BUILD_TRAIN,
+
+    /**
+     * A Client to Server packet carrying a Game Master's edit of one or more hexes: the hexes to change and the
+     * terrain they should end up holding. Sent instead of a chat command because an edit of a whole hex, across
+     * several hexes, is more than a command line can carry. The server accepts it only from a Game Master, and
+     * validates every hex before changing any of them.
+     */
+    HEX_EDIT,
+
+    /**
+     * A Client to Server packet carrying a Game Master's edit of the building in one hex: what should be standing
+     * there when the edit is done. The same packet puts a building where there was none, changes the one that is
+     * there and takes it away; the server works out which by looking at the hex. Accepted only from a Game Master.
+     */
+    BUILDING_EDIT,
+
+    /**
+     * A Client to Server packet turning one unit's automatic ejection on or off after the lobby has closed. Carries
+     * only that one setting, so the server's copy of the unit keeps every piece of state the sender does not own.
+     * Accepted only from the unit's owner.
+     */
+    ENTITY_EJECTION_SETTING_CHANGE,
+    /** A player's declaration for an infantry action in a building, in the Pre-End Declarations phase. */
+    INFANTRY_ACTION_DECLARATION;
     //endregion Enum Declarations
 
     //region Boolean Comparison Methods

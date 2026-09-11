@@ -52,6 +52,7 @@ import megamek.client.ui.util.PlayerColour;
 import megamek.common.Configuration;
 import megamek.common.annotations.Nullable;
 import megamek.common.enums.WeaponSortOrder;
+import megamek.common.preference.IPreferenceStore;
 import megamek.common.preference.PreferenceManager;
 import megamek.common.preference.PreferenceStoreProxy;
 import megamek.common.units.EntityMovementType;
@@ -303,6 +304,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
     public static final String FOV_STRIPES = "FoVFogStripes";
     public static final String FOV_GRAYSCALE = "FoVFogGrayscale";
     public static final String FOV_SPOTTING_MODE = "FovSpottingMode";
+    public static final String SHOW_OBJECTIVE_OVERLAYS = "ShowObjectiveOverlays";
     public static final String GUI_SCALE = "GUIScale";
     public static final String LOBBY_MEK_TABLE_UNIT_WIDTH = "LobbyMekTableUnitWidth";
     public static final String LOBBY_MEK_TABLE_PILOT_WIDTH = "LobbyMekTablePilotWidth";
@@ -391,6 +393,8 @@ public class GUIPreferences extends PreferenceStoreProxy {
     public static final String NAG_FOR_LAUNCH_DOORS = "NagForLaunchDoors";
     public static final String NAG_FOR_MECHANICAL_FALL_DAMAGE = "NagForMechanicalFallDamage";
     public static final String NAG_FOR_DOOMED = "NagForDoomed";
+    public static final String NAG_FOR_DOOMED_MOVE = "NagForDoomedMove";
+    public static final String NAG_FOR_AUTO_EJECT = "NagForAutoEject";
     public static final String NAG_FOR_DISHONOR = "NagForDishonor";
     public static final String NAG_FOR_WIGE_LANDING = "NagForWiGELanding";
     public static final String NAG_FOR_ODD_SIZED_BOARD = "NagForOddSizedBoard";
@@ -542,6 +546,9 @@ public class GUIPreferences extends PreferenceStoreProxy {
     private static final String _TAB_ORDER = "_tabOrder";
     private static final String _WINDOW = "_window";
 
+    // Persisted typo used by older releases; this is not a valid localization key.
+    static final String LEGACY_PLAYER_COLOUR_BROWN = "layerColour.BROWN.text";
+
     protected static GUIPreferences instance = new GUIPreferences();
 
     public static final int HIDE = 0;
@@ -550,6 +557,14 @@ public class GUIPreferences extends PreferenceStoreProxy {
 
     public static GUIPreferences getInstance() {
         return instance;
+    }
+
+    static void migrateLegacyBrownPlayerColour(IPreferenceStore preferenceStore) {
+        if (preferenceStore.hasProperty(LEGACY_PLAYER_COLOUR_BROWN)
+              && !preferenceStore.hasProperty(PlayerColour.PLAYER_COLOUR_BROWN)) {
+            preferenceStore.setValue(PlayerColour.PLAYER_COLOUR_BROWN,
+                preferenceStore.getString(LEGACY_PLAYER_COLOUR_BROWN));
+        }
     }
 
     protected GUIPreferences() {
@@ -622,6 +637,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         setDefault(PlayerColour.PLAYER_COLOUR_CHARTREUSE, new Color(0x7FFF00));
         setDefault(PlayerColour.PLAYER_COLOUR_DEEP_PURPLE, new Color(0x9400D3));
         setDefault(PlayerColour.PLAYER_COLOUR_YELLOW, new Color(0xF2F261));
+        migrateLegacyBrownPlayerColour(store);
 
         setDefault(BOARD_MOVE_DEFAULT_CLIMB_MODE, true);
         setDefault(BOARD_MOVE_DEFAULT_COLOR, Color.CYAN);
@@ -689,6 +705,7 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setDefault(FOV_STRIPES, 35);
         store.setDefault(FOV_GRAYSCALE, false);
         store.setDefault(FOV_SPOTTING_MODE, false);
+        store.setDefault(SHOW_OBJECTIVE_OVERLAYS, true);
 
         store.setDefault(HIGH_QUALITY_GRAPHICS, true);
         store.setDefault(AO_HEX_SHADOWS, false);
@@ -901,6 +918,8 @@ public class GUIPreferences extends PreferenceStoreProxy {
         store.setDefault(MOUSE_WHEEL_ZOOM_FLIP, true);
 
         store.setDefault(NAG_FOR_CRUSHING_BUILDINGS, true);
+        store.setDefault(NAG_FOR_DOOMED_MOVE, true);
+        store.setDefault(NAG_FOR_AUTO_EJECT, true);
         store.setDefault(NAG_FOR_MAP_ED_README, true);
         store.setDefault(NAG_FOR_MASC, true);
         store.setDefault(NAG_FOR_NO_ACTION, true);
@@ -1625,6 +1644,22 @@ public class GUIPreferences extends PreferenceStoreProxy {
         return store.getBoolean(MOUSE_WHEEL_ZOOM_FLIP);
     }
 
+    public boolean getNagForDoomedMove() {
+        return store.getBoolean(NAG_FOR_DOOMED_MOVE);
+    }
+
+    public void setNagForDoomedMove(boolean shouldNag) {
+        store.setValue(NAG_FOR_DOOMED_MOVE, shouldNag);
+    }
+
+    public boolean getNagForAutoEject() {
+        return store.getBoolean(NAG_FOR_AUTO_EJECT);
+    }
+
+    public void setNagForAutoEject(boolean shouldNag) {
+        store.setValue(NAG_FOR_AUTO_EJECT, shouldNag);
+    }
+
     public boolean getNagForCrushingBuildings() {
         return store.getBoolean(NAG_FOR_CRUSHING_BUILDINGS);
     }
@@ -2289,6 +2324,15 @@ public class GUIPreferences extends PreferenceStoreProxy {
 
     public void setFovSpottingMode(boolean state) {
         store.setValue(FOV_SPOTTING_MODE, state);
+    }
+
+    /** @return whether the objective overlays - control zone outlines and scheme words - are shown */
+    public boolean getShowObjectiveOverlays() {
+        return store.getBoolean(SHOW_OBJECTIVE_OVERLAYS);
+    }
+
+    public void setShowObjectiveOverlays(boolean state) {
+        store.setValue(SHOW_OBJECTIVE_OVERLAYS, state);
     }
 
     public void setMapZoomIndex(int zoomIndex) {

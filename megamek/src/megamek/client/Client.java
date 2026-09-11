@@ -62,6 +62,7 @@ import megamek.client.ui.tileset.TilesetManager;
 import megamek.client.ui.util.UIUtil;
 import megamek.common.Hex;
 import megamek.common.IndustrialElevator;
+import megamek.common.InfantryActionDeclaration;
 import megamek.common.Player;
 import megamek.common.Report;
 import megamek.common.SpecialHexDisplay;
@@ -72,7 +73,9 @@ import megamek.common.annotations.Nullable;
 import megamek.common.board.Board;
 import megamek.common.board.BoardDimensions;
 import megamek.common.board.BoardLocation;
+import megamek.common.board.BuildingEditSpec;
 import megamek.common.board.Coords;
+import megamek.common.board.HexEditSpec;
 import megamek.common.enums.GamePhase;
 import megamek.common.enums.VariableRangeTargetingMode;
 import megamek.common.equipment.Flare;
@@ -528,6 +531,28 @@ public class Client extends AbstractClient {
     public void sendDamageEdit(DamageEditSpec spec) {
         LOGGER.debug("Sending damage edits for unit id {}", spec.entityId);
         send(new Packet(PacketCommand.ENTITY_DAMAGE_EDIT, spec));
+    }
+
+    /**
+     * Sends a gamemaster's edit of one or more hexes. The server accepts it only from a Game Master and checks every
+     * hex before changing any of them, so a refusal comes back as server chat rather than a partly applied edit.
+     *
+     * @param spec The hexes to change and the terrain they should end up holding
+     */
+    public void sendHexEdit(HexEditSpec spec) {
+        LOGGER.debug("Sending a hex edit for {} hex(es)", spec.getCoords().size());
+        send(new Packet(PacketCommand.HEX_EDIT, spec));
+    }
+
+    /**
+     * Sends a gamemaster's edit of the building in one hex. The server accepts it only from a Game Master and decides
+     * from the hex whether it is putting a building there, changing the one that is there, or taking it away.
+     *
+     * @param spec What should be standing in the hex when the edit is done
+     */
+    public void sendBuildingEdit(BuildingEditSpec spec) {
+        LOGGER.debug("Sending a building edit for hex {}", spec.getCoords().getBoardNum());
+        send(new Packet(PacketCommand.BUILDING_EDIT, spec));
     }
 
     /**
@@ -1072,6 +1097,19 @@ public class Client extends AbstractClient {
      */
     public void sendVariableRangeTargetingModeChange(int entityId, VariableRangeTargetingMode mode) {
         send(new Packet(PacketCommand.ENTITY_VARIABLE_RANGE_MODE_CHANGE, entityId, mode));
+    }
+
+    /**
+     * Turns one unit's automatic ejection on or off after the lobby has closed. The lobby's unit configuration is the
+     * only other way to reach this setting, and it cannot be opened once play has begun, so without this a player who
+     * is warned at deployment that ejecting will kill their crews has no way to act on it.
+     *
+     * @param entityId     the unit whose setting is changing
+     * @param shouldEject  {@code true} to eject the crew automatically, {@code false} to ride it out
+     */
+    public void sendEjectionSettingChange(int entityId, boolean shouldEject) {
+        LOGGER.debug("Sending automatic ejection setting {} for unit id {}", shouldEject, entityId);
+        send(new Packet(PacketCommand.ENTITY_EJECTION_SETTING_CHANGE, entityId, shouldEject));
     }
 
     /**
@@ -1663,6 +1701,15 @@ public class Client extends AbstractClient {
      */
     public void sendDeployBridge(int entityId, int equipNum) {
         send(new Packet(PacketCommand.ENTITY_DEPLOY_BRIDGE, entityId, equipNum));
+    }
+
+    /**
+     * Sends the local player's declaration for an infantry action in a building (TO:AR pp. 169 to 172).
+     *
+     * @param declaration what the player commits or withdraws
+     */
+    public void sendInfantryActionDeclaration(InfantryActionDeclaration declaration) {
+        send(new Packet(PacketCommand.INFANTRY_ACTION_DECLARATION, declaration));
     }
 
     /**

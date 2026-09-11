@@ -110,6 +110,7 @@ import megamek.common.equipment.Transporter;
 import megamek.common.equipment.enums.MiscTypeFlag;
 import megamek.common.event.GamePhaseChangeEvent;
 import megamek.common.event.GameTurnChangeEvent;
+import megamek.common.event.board.GameBoardChangeEvent;
 import megamek.common.game.Game;
 import megamek.common.game.GameTurn;
 import megamek.common.game.IGame;
@@ -1985,6 +1986,36 @@ public class MovementDisplay extends ActionPhaseDisplay {
         return removed;
     }
 
+    /**
+     * Whether this move would put the unit under water somewhere its existing damage turns into a hole.
+     * <p>
+     * A location already stripped of armour is breached the moment it goes under, with no roll to survive it
+     * (TW p.121), and that destroys a vehicle outright. The player cannot see that coming from the movement
+     * display, so it is worth asking before the water closes over it.
+     *
+     * @param movingEntity the unit being moved, or {@code null} if none is selected
+     * @param movePath     the move being considered
+     *
+     * @return {@code true} if the move ends the unit's war
+     */
+    private boolean movesIntoWaterThatWouldDestroyIt(@Nullable Entity movingEntity, MovePath movePath) {
+        if (!EnvironmentalSealingRules.wouldBeDestroyedByWaterBreach(movingEntity)) {
+            return false;
+        }
+        for (MoveStep step : movePath.getStepVector()) {
+            Hex hex = game.getHex(step.getPosition(), step.getBoardId());
+            boolean goesUnderTheSurface = (hex != null)
+                  && (hex.terrainLevel(Terrains.WATER) > 0)
+                  && (step.getElevation() < hex.getLevel());
+            if (goesUnderTheSurface) {
+                LOGGER.debug("[EnvironmentalSealing] {}: warning about a doomed move - a location has no armour "
+                      + "left and hex {} puts it under water", movingEntity.getShortName(), step.getPosition());
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean checkNags() {
         String check = SharedUtility.doPSRCheck(cmd);
         String thrustCheck = SharedUtility.doThrustCheck(cmd, clientgui.getClient());
@@ -2125,6 +2156,17 @@ public class MovementDisplay extends ActionPhaseDisplay {
                       currentlySelectedEntity.getMechanicalJumpBoosterMP(),
                       cmd.getJumpMaxElevationChange() - currentlySelectedEntity.getMechanicalJumpBoosterMP());
                 if (checkNagForMechanicalJumpFallDamage(title, body)) {
+                    return true;
+                }
+            }
+        }
+
+        if (needNagForDoomedMove()) {
+            if (movesIntoWaterThatWouldDestroyIt(currentlySelectedEntity, cmd)) {
+                String title = Messages.getString("MovementDisplay.areYouSure");
+                String body = Messages.getString("MovementDisplay.ConfirmDoomedMove",
+                      currentlySelectedEntity.getShortName());
+                if (checkNagForDoomedMove(title, body)) {
                     return true;
                 }
             }
@@ -6181,6 +6223,25 @@ public class MovementDisplay extends ActionPhaseDisplay {
             maxMP = currentEntity.getRunMP();
         }
         return maxMP;
+    }
+
+    /**
+     * Recomputes the collapse warnings when the board changes under the selected unit.
+     *
+     * <p>The warnings mark hexes where the unit's weight would bring a building down, and they are worked out once
+     * when the unit is selected. A gamemaster removing a building, or changing its construction factor, changes the
+     * answer without the unit having moved, so they have to be worked out again - otherwise the marker sits over a
+     * hex whose building is no longer there.</p>
+     */
+    @Override
+    public void gameBoardChanged(GameBoardChangeEvent event) {
+        if (isIgnoringEvents()) {
+            return;
+        }
+        Entity selectedEntity = currentEntity();
+        if (selectedEntity != null) {
+            computeCFWarningHexes(selectedEntity);
+        }
     }
 
     private void computeCFWarningHexes(Entity ce) {

@@ -61,6 +61,7 @@ import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.swing.JCheckBox;
@@ -179,27 +180,30 @@ class GameOptionsPaneTest {
 
     @Test
     void visibilityRefreshKeepsSectionSearchAndReplacesVisibleOptionIndex() throws Exception {
+        AtomicBoolean showBridgeRepair = new AtomicBoolean(false);
+        AtomicReference<GameOptionsPane> pane = new AtomicReference<>();
         runOnEdt(() -> {
             GameOptions options = new GameOptions();
             DialogOptionComponentYPanel bridgeBuilding = component(
                   options.getOption(OptionsConstants.ADVANCED_BRIDGE_BUILDING_ENGINEERS));
             DialogOptionComponentYPanel bridgeRepair = component(
                   options.getOption(OptionsConstants.UNOFFICIAL_BRIDGE_REPAIR_ENGINEERS));
-            AtomicBoolean showBridgeRepair = new AtomicBoolean(false);
-            GameOptionsPane pane = pane("advancedRules", List.of(bridgeBuilding, bridgeRepair),
+            pane.set(pane("advancedRules", List.of(bridgeBuilding, bridgeRepair),
                   option -> !option.getName().equals(OptionsConstants.UNOFFICIAL_BRIDGE_REPAIR_ENGINEERS)
-                        || showBridgeRepair.get());
-            JTree tree = findComponent(pane, JTree.class);
+                        || showBridgeRepair.get()));
 
-            pane.setFilterText(OptionsConstants.UNOFFICIAL_BRIDGE_REPAIR_ENGINEERS);
+            pane.get().setFilterText(OptionsConstants.UNOFFICIAL_BRIDGE_REPAIR_ENGINEERS);
+        });
+        runOnEdt(() -> {
+            JTree tree = findComponent(pane.get(), JTree.class);
             assertTreePathDoesNotExist(tree, "Rules", "Terrain and Environment");
 
-            pane.setFilterText("Battlefield Engineering");
+            pane.get().setFilterText("Battlefield Engineering");
             assertTreePathExists(tree, "Rules", "Terrain and Environment");
 
             showBridgeRepair.set(true);
-            pane.refreshVisibility();
-            pane.setFilterText(OptionsConstants.UNOFFICIAL_BRIDGE_REPAIR_ENGINEERS);
+            pane.get().refreshVisibility();
+            pane.get().setFilterText(OptionsConstants.UNOFFICIAL_BRIDGE_REPAIR_ENGINEERS);
             assertTreePathExists(tree, "Rules", "Terrain and Environment");
         });
     }
@@ -1044,6 +1048,29 @@ class GameOptionsPaneTest {
     }
 
     @Test
+    void useObjectivesIsAFullWidthRowOfItsOwn() throws Exception {
+        // packed after Enemy Commander Destroyed it landed in the right-hand column and went unseen; the
+        // two kill conditions now share the grid and Use Objectives stands alone under them
+        runOnEdt(() -> {
+            GameOptions options = new GameOptions();
+            DialogOptionComponentYPanel commanderKilled = component(
+                  options.getOption(OptionsConstants.VICTORY_COMMANDER_KILLED));
+            DialogOptionComponentYPanel useKillCount = component(
+                  options.getOption(OptionsConstants.VICTORY_USE_KILL_COUNT));
+            DialogOptionComponentYPanel killCount = component(
+                  options.getOption(OptionsConstants.VICTORY_GAME_KILL_COUNT));
+            DialogOptionComponentYPanel useObjectives = component(
+                  options.getOption(OptionsConstants.VICTORY_USE_OBJECTIVES));
+
+            pane("victory", List.of(commanderKilled, useKillCount, killCount, useObjectives), option -> true);
+
+            assertTwoColumnCheckBoxGrid(commanderKilled, useKillCount);
+            assertLabelControlRow(killCount);
+            assertStandaloneCheckBox(useObjectives);
+        });
+    }
+
+    @Test
     void victoryNumericOptionsUseBoundedSpinnersAndKeepDefaults() throws Exception {
         runOnEdt(() -> {
             GameOptions options = new GameOptions();
@@ -1057,15 +1084,45 @@ class GameOptionsPaneTest {
                   options.getOption(OptionsConstants.VICTORY_GAME_TURN_LIMIT));
             DialogOptionComponentYPanel killCount = component(
                   options.getOption(OptionsConstants.VICTORY_GAME_KILL_COUNT));
+            DialogOptionComponentYPanel winThreshold = component(
+                  options.getOption(OptionsConstants.VICTORY_VP_WIN_THRESHOLD));
 
-            pane("victory", List.of(conditions, destroyedPercent, ratioPercent, turnLimit, killCount),
-                  option -> true);
+            pane("victory", List.of(conditions, destroyedPercent, ratioPercent, turnLimit, killCount,
+                  winThreshold), option -> true);
 
             assertIntegerSpinner(conditions, 1, 100, 1);
             assertIntegerSpinner(destroyedPercent, 1, 100, 100);
             assertIntegerSpinner(ratioPercent, 1, 10_000, 300);
             assertIntegerSpinner(turnLimit, 1, 10_000, 10);
             assertIntegerSpinner(killCount, 1, 10_000, 4);
+            // zero is how the threshold is switched off, so it is the floor rather than one
+            assertIntegerSpinner(winThreshold, 0, 10_000, 0);
+        });
+    }
+
+    @Test
+    void victoryNumbersAreGreyedUntilTheirMasterSwitchIsOn() throws Exception {
+        // a turn limit with "Force game end at turn limit" off does nothing, as does a victory point
+        // threshold with Use Objectives off; the pane used to offer both as if they counted
+        runOnEdt(() -> {
+            GameOptions options = new GameOptions();
+            DialogOptionComponentYPanel useTurnLimit = component(
+                  options.getOption(OptionsConstants.VICTORY_USE_GAME_TURN_LIMIT));
+            DialogOptionComponentYPanel turnLimit = component(
+                  options.getOption(OptionsConstants.VICTORY_GAME_TURN_LIMIT));
+            DialogOptionComponentYPanel useObjectives = component(
+                  options.getOption(OptionsConstants.VICTORY_USE_OBJECTIVES));
+            DialogOptionComponentYPanel suddenDeath = component(
+                  options.getOption(OptionsConstants.VICTORY_VP_SUDDEN_DEATH));
+
+            pane("victory", List.of(useTurnLimit, turnLimit, useObjectives, suddenDeath), option -> true);
+
+            assertFalse(turnLimit.getEditable());
+            assertFalse(suddenDeath.getEditable());
+            useTurnLimit.settingsCheckBox().setSelected(true);
+            useObjectives.settingsCheckBox().setSelected(true);
+            assertTrue(turnLimit.getEditable());
+            assertTrue(suddenDeath.getEditable());
         });
     }
 

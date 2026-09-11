@@ -315,7 +315,18 @@ public class Mounted<T extends EquipmentType> implements Serializable, RoundUpda
         return getType().getModesCount(this);
     }
 
-    protected EquipmentMode getMode(int mode) {
+    /**
+     * Returns one of this mount's available modes by position.
+     *
+     * <p>Read modes through this rather than through {@link #getType()}. A mount can offer more modes than its own
+     * type does: an infantry platoon's mount combines the modes of its primary and secondary weapons, so counting
+     * with {@link #getModesCount()} and then reading from the type walks off the end of the type's list.</p>
+     *
+     * @param mode the position in this mount's mode list
+     *
+     * @return the mode at that position
+     */
+    public EquipmentMode getMode(int mode) {
         return getType().getMode(mode);
     }
 
@@ -890,6 +901,18 @@ public class Mounted<T extends EquipmentType> implements Serializable, RoundUpda
 
     public boolean jammedThisPhase() {
         return jammedThisPhase;
+    }
+
+    /**
+     * Sets the jam so that it is in force at once, rather than from the next phase as {@link #setJammed(boolean)}
+     * arranges. A jam declared in play only bites when the phase turns over, but a gamemaster editing a unit is
+     * describing its condition as it stands, so the change has to be visible immediately.
+     *
+     * @param jammedNow {@code true} to jam the equipment here and now, {@code false} to clear the jam entirely
+     */
+    public void setJammedImmediately(boolean jammedNow) {
+        jammed = jammedNow;
+        jammedThisPhase = jammedNow;
     }
 
     /**

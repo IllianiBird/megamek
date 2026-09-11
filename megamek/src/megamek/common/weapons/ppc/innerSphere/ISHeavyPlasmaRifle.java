@@ -77,7 +77,7 @@ public class ISHeavyPlasmaRifle extends AmmoWeapon {
         criticalSlots = 3;
         flags = flags.or(F_MEK_WEAPON).or(F_TANK_WEAPON).or(F_AERO_WEAPON)
               .or(F_PLASMA).or(F_DIRECT_FIRE).or(F_ENERGY);
-        bv = 278;
+        bv = 246;
         cost = 260000;
         shortAV = 12;
         medAV = 12;
@@ -85,8 +85,6 @@ public class ISHeavyPlasmaRifle extends AmmoWeapon {
         atClass = CLASS_PLASMA;
         rulesRefs = rulesRefs(SourceBookCode.CORE, 189);
         techAdvancement.setTechBase(TechBase.IS)
-              .setIntroLevel(false)
-              .setUnofficial(false)
               .setTechRating(TechRating.E)
               .setAvailability(AvailabilityValue.X, AvailabilityValue.X, AvailabilityValue.E, AvailabilityValue.D)
               .setISAdvancement(3061, 3068, 3072, DATE_NONE, DATE_NONE)

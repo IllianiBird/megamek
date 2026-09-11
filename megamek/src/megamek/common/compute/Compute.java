@@ -39,6 +39,7 @@ import static java.lang.Math.min;
 
 import java.util.*;
 
+import megamek.MMConstants;
 import megamek.common.*;
 import megamek.common.actions.*;
 import megamek.common.annotations.Nullable;
@@ -200,7 +201,7 @@ public class Compute {
     public static int d6(int dice) {
         return rollD6(dice).getIntValue();
     }
-        
+
     /**
      * Wrapper to random#d6(n)
      */
@@ -221,7 +222,7 @@ public class Compute {
         }
         return roll;
     }
-    
+
     /**
      * Wrapper to random#d6(n)
      */
@@ -844,7 +845,8 @@ public class Compute {
               || (entity instanceof QuadVee && entity.getConversionMode() == QuadVee.CONV_MODE_VEHICLE))
               && (destHex.terrainLevel(Terrains.WATER) > 0)
               && !isPavementStep
-              && Game.rulesManager.getRulesMovement().isMoveIntoWaterDangerous(movementType, entity.getMovementMode())) {
+              && Game.rulesManager.getRulesMovement()
+              .isMoveIntoWaterDangerous(movementType, entity.getMovementMode())) {
             return true;
         }
 
@@ -1238,10 +1240,9 @@ public class Compute {
 
     /**
      * Gets the ToHitData associated with firing at an immobile target. Returns null if target isn't.
-     *
-     * Note: all Ranged attack calls *must* go through *.addImmobileMod() or we may get
-     * illegal -4 mods.
-     * Currently this is the case; all other attack types go through the above simplified method.
+     * <p>
+     * Note: all Ranged attack calls *must* go through *.addImmobileMod() or we may get illegal -4 mods. Currently this
+     * is the case; all other attack types go through the above simplified method.
      *
      * @param target     The target being considered for firing
      * @param aimingAt   The location of the unit being aimed at
@@ -1549,7 +1550,7 @@ public class Compute {
         }
 
         int c3dist = Compute.effectiveDistance(game, c3spotter, target, false);
-        
+
         int c3ecmDist = Compute.effectiveDistance(game, c3spotterWithECM, target, false);
 
         // C3 can't benefit from LOS range.
@@ -1576,7 +1577,7 @@ public class Compute {
         } else {
             usingRange = range;
         }
-        
+
         // add range modifier, C3 can't be used with LOS Range
         if (((usingRange == range) && !usingC3) || (range == RangeType.RANGE_LOS) || (attackingEntity.hasNavalC3()
               && !nc3EnergyGuided)) {
@@ -1834,7 +1835,14 @@ public class Compute {
                 mods.addModifier(1, "point blank support weapon");
             }
 
-            if (primaryWeapon.hasFlag(WeaponType.F_INF_BURST)) {
+            // A platoon whose primary weapon is over the damage cap has its damage reduced to the cap and
+            // "automatically gain[s] the Heavy Burst Weapon special feature" (TM p. 152). That feature is both a
+            // -1 to-hit at range 0 and +1D6 damage against conventional infantry; the damage half is applied in
+            // InfantryWeaponHandler, so the to-hit half has to honour the same condition or the platoon gets only
+            // half of what the rule grants.
+            boolean heavyBurstFromDamageCap =
+                  primaryWeapon.getInfantryDamage() > MMConstants.INFANTRY_PRIMARY_WEAPON_DAMAGE_CAP;
+            if (primaryWeapon.hasFlag(WeaponType.F_INF_BURST) || heavyBurstFromDamageCap) {
                 mods.addModifier(-1, "point blank burst fire weapon");
             }
         }
@@ -2690,15 +2698,15 @@ public class Compute {
                   "Can't target unit with active stealth armor as a secondary target");
         }
 
-        int mod = Game.rulesManager.getRulesTarget().getSecondaryArcModifier();
-        if (curInFrontArc || (attacker instanceof BattleArmor)) {
-            mod--;
+        // Secondary target default value
+        int mod = Game.rulesManager.getRulesTarget().getSecondaryTargetModifier();
+        // Check for secondary arc and change as needed
+        if (!curInFrontArc && !(attacker instanceof BattleArmor)) {
+            mod = Game.rulesManager.getRulesTarget().getSecondaryArcModifier();
         }
-
         if (attacker.hasAbility(OptionsConstants.GUNNERY_MULTI_TASKER)) {
             mod--;
         }
-
         return new ToHitData(mod, "secondary target modifier");
     }
 
@@ -3338,8 +3346,8 @@ public class Compute {
     }
 
     /**
-     * Returns the weapon attack out of a list that has the second highest expected damage
-     * used for engaging multiple salvos
+     * Returns the weapon attack out of a list that has the second highest expected damage used for engaging multiple
+     * salvos
      */
     public static WeaponAttackAction getSecondHighestExpectedDamage(Game g,
           List<WeaponAttackAction> vAttacks, boolean assumeHit) {
@@ -6321,6 +6329,11 @@ public class Compute {
      *       the roof or in the air above the building, or if any input argument is <code>null</code>
      */
     public static boolean isInBuilding(@Nullable Game game, @Nullable Entity entity, @Nullable Coords coords) {
+        // A building entity occupies its hexes but is never "inside" a building; treating it as an occupant makes
+        // weapon fire absorb against it twice (once as the building, once as a unit in the building)
+        if (entity instanceof AbstractBuildingEntity) {
+            return false;
+        }
         return (game != null) && (entity != null) && (coords != null)
               && isInBuilding(game, entity.getElevation(), coords, entity.getBoardId());
     }
@@ -6397,14 +6410,12 @@ public class Compute {
     }
 
     /**
-     * Scatters from a hex in a random direction, rolling 1d6 to pick one of the six straight-line
-     * directions.
+     * Scatters from a hex in a random direction, rolling 1d6 to pick one of the six straight-line directions.
      *
      * @param coords the <code>Coords</code> to scatter from
-     * @param margin the scatter distance in hexes; its magnitude is used, so a negative value (such
-     *               as a negative margin of failure) scatters the same distance as its positive
-     *               counterpart. Callers may also pass a fixed distance unrelated to a margin of
-     *               failure.
+     * @param margin the scatter distance in hexes; its magnitude is used, so a negative value (such as a negative
+     *               margin of failure) scatters the same distance as its positive counterpart. Callers may also pass a
+     *               fixed distance unrelated to a margin of failure.
      *
      * @return the <code>Coords</code> scattered to
      */
@@ -6716,6 +6727,34 @@ public class Compute {
           boolean isAttackThruBuilding, int attackerId, Vector<Report> vReport,
           int mgaSize) {
 
+        // An attack the atmosphere has pushed onto the Area-Effect row kills Damage Value / .5 troopers, the same
+        // doubling MegaMek applies to a real area-effect attack (TW p.217, TO:AR p.54).
+        if (damageType == WeaponType.WEAPON_AREA_EFFECT_INFANTRY) {
+            int areaEffectDamage = (int) Math.ceil(damage * 2);
+            if (vReport != null) {
+                Report areaEffectReport = new Report(7724);
+                areaEffectReport.subject = attackerId;
+                areaEffectReport.indent(2);
+                areaEffectReport.add(areaEffectDamage);
+                vReport.add(areaEffectReport);
+            }
+            return areaEffectDamage;
+        }
+
+        // An attack the atmosphere has turned into infantry-on-infantry damage skips the table completely: its
+        // damage is applied point for point (TW p.216, TO:AR p.54).
+        if (damageType == WeaponType.WEAPON_INFANTRY_ORIGIN) {
+            int appliedDamage = (int) Math.ceil(damage);
+            if (vReport != null) {
+                Report infantryOriginReport = new Report(7719);
+                infantryOriginReport.subject = attackerId;
+                infantryOriginReport.indent(2);
+                infantryOriginReport.add(appliedDamage);
+                vReport.add(infantryOriginReport);
+            }
+            return appliedDamage;
+        }
+
         // Report initial (original) damage
         Report r = new Report();
         r.subject = attackerId;
@@ -6725,8 +6764,10 @@ public class Compute {
         r.messageId = 9970;
         String mod = "1:1";
 
-        // Update for MOS
-        damageType += mos;
+        // Update for MOS. The Non-Conventional Damage against Infantry table ends at 7D6, so a large margin of
+        // success cannot shift the damage past its last row. Without the clamp the shifted class matches no case
+        // below and the weapon falls back to its base damage, which is far less than the burst it should roll.
+        damageType = Math.clamp(damageType + mos, WeaponType.WEAPON_DIRECT_FIRE, WeaponType.WEAPON_BURST_7D6);
         double priorDamage = damage;
 
         switch (damageType) {
@@ -6849,10 +6890,9 @@ public class Compute {
         r.add(mod);
 
         if (isAttackThruBuilding && (priorDamage != damage)) {
-            // Indicates damage halved for thru-building attack; priorDamage != damage
-            r.extend(9972);
+            // Fire inside a building halves burst-fire damage to infantry (TW p. 175); its own line in the report
+            r.extend(9977);
             r.add((int) damage);
-            r.add(ReportMessages.getString(String.valueOf(9973)));
         }
 
         // according to the following ruling, the half damage that mechanized
@@ -7343,7 +7383,9 @@ public class Compute {
 
     /**
      * Returns the number of required gunners for an entity.
+     *
      * @param entity The entity
+     *
      * @return The number of required gunners
      */
     public static int getTotalGunnerNeeds(Entity entity) {
@@ -7369,11 +7411,12 @@ public class Compute {
     }
 
     /**
-     * Returns the number of required gunners for a small craft/jumpship.
-     * One gunner is required for each capital weapon and each six standard scale weapons, rounding up.
-     * Each Mass Driver requires 10 gunners (TO: AU&amp;E 6th ed, p 134).
-     * Each Screen Launcher requires 1 gunner (TM 6th ed, p 237).
+     * Returns the number of required gunners for a small craft/jumpship. One gunner is required for each capital weapon
+     * and each six standard scale weapons, rounding up. Each Mass Driver requires 10 gunners (TO: AU&amp;E 6th ed, p
+     * 134). Each Screen Launcher requires 1 gunner (TM 6th ed, p 237).
+     *
      * @param entity The small craft/jumpship
+     *
      * @return The number of required gunners
      */
     private static int getSmallCraftJumpshipGunnerNeeds(Entity entity) {
@@ -7624,6 +7667,9 @@ public class Compute {
             return getAeroCrewNeeds(entity) + getTotalGunnerNeeds(entity) + getAdditionalNonGunner(entity);
         } else if (entity.isSuperHeavy() || entity.isTripodMek()) {
             return getTotalDriverNeeds(entity) + getTotalGunnerNeeds(entity) + getAdditionalNonGunner(entity);
+        } else if (entity instanceof AbstractBuildingEntity building) {
+            // The crew from the unit file or the Advanced Building Minimum Crew Table, plus any bay personnel
+            return building.getNCrew() + building.getBayPersonnel();
         } else {
             return 1;
         }

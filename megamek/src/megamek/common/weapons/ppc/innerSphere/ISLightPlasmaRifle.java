@@ -60,7 +60,7 @@ import megamek.server.totalWarfare.TWGameManager;
 public class ISLightPlasmaRifle extends AmmoWeapon {
     @Serial
     private static final long serialVersionUID = -7919371014161089388L;
-    
+
     public ISLightPlasmaRifle() {
         name = "Light Plasma Rifle";
         setInternalName("ISLightPlasmaRifle");
@@ -77,7 +77,7 @@ public class ISLightPlasmaRifle extends AmmoWeapon {
         criticalSlots = 2;
         flags = flags.or(F_MEK_WEAPON).or(F_TANK_WEAPON).or(F_AERO_WEAPON)
               .or(F_PLASMA).or(F_DIRECT_FIRE).or(F_ENERGY);
-        bv = 96;
+        bv = 112;
         cost = 260000;
         shortAV = 4;
         medAV = 4;
@@ -85,8 +85,6 @@ public class ISLightPlasmaRifle extends AmmoWeapon {
         atClass = CLASS_PLASMA;
         rulesRefs = rulesRefs(SourceBookCode.CORE, 189);
         techAdvancement.setTechBase(TechBase.IS)
-              .setIntroLevel(false)
-              .setUnofficial(false)
               .setTechRating(TechRating.E)
               .setAvailability(AvailabilityValue.X, AvailabilityValue.X, AvailabilityValue.E, AvailabilityValue.D)
               .setISAdvancement(3061, 3068, 3072, DATE_NONE, DATE_NONE)

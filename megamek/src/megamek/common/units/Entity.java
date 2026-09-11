@@ -784,6 +784,12 @@ public abstract class Entity extends TurnOrdered
     private boolean infantryCombatWantsWithdrawal = false;
 
     /**
+     * Whether this unit withdrew from an infantry action and is moved to a hex next to the building in the following
+     * End Phase (TO:AR p. 172).
+     */
+    private boolean infantryActionLeaving = false;
+
+    /**
      * Flag that indicates that the unit can still be salvaged (given enough time and parts).
      */
     private boolean salvageable = true;
@@ -910,6 +916,13 @@ public abstract class Entity extends TurnOrdered
      * The entity id of our current spot-target
      */
     private int spotTargetId = Entity.NONE;
+
+    /**
+     * End Phases this unit has spent out in the open in a tainted atmosphere, TO:AR p.54. An {@code int} rather than a
+     * state object so that a unit deserialized from a save written before this field existed simply starts its clock
+     * at zero instead of coming back {@code null}.
+     */
+    private int taintedAtmosphereExposureTurns = 0;
 
     private boolean isCommander = false;
 
@@ -2799,6 +2812,22 @@ public abstract class Entity extends TurnOrdered
     }
 
     /**
+     * The depth of the basement under the hex that this unit may move down into. A small basement (Basements Table
+     * result 9, TW p. 179) can only be entered by infantry, so it counts as no basement for every other unit.
+     *
+     * @param hex the hex being checked
+     *
+     * @return the number of levels this unit may descend below the hex, never negative
+     */
+    private int enterableBasementDepth(Hex hex) {
+        BasementType basement = BasementType.getType(hex.terrainLevel(Terrains.BLDG_BASEMENT_TYPE));
+        if (basement.isOneDeepNormalInfantryOnly() && !(this instanceof Infantry)) {
+            return 0;
+        }
+        return Math.max(0, basement.getDepth());
+    }
+
+    /**
      * is it possible to go down, or are we landed/just above the water/treeline? assuming passed elevation.
      */
     public boolean canGoDown(int assumedElevation, Coords assumedPos, int boardId) {
@@ -2813,7 +2842,7 @@ public abstract class Entity extends TurnOrdered
             case INF_JUMP:
             case INF_LEG:
             case INF_MOTORIZED:
-                minAlt -= Math.max(0, BasementType.getType(hex.terrainLevel(Terrains.BLDG_BASEMENT_TYPE)).getDepth());
+                minAlt -= enterableBasementDepth(hex);
                 break;
             case WIGE:
                 // Per errata, WiGEs have flotation hull, which makes no sense unless it changes the rule
@@ -2877,8 +2906,7 @@ public abstract class Entity extends TurnOrdered
             case BIPED:
             case QUAD:
                 if (this instanceof ProtoMek) {
-                    minAlt -= Math.max(0,
-                          BasementType.getType(hex.terrainLevel(Terrains.BLDG_BASEMENT_TYPE)).getDepth());
+                    minAlt -= enterableBasementDepth(hex);
                 } else {
                     return false;
                 }
@@ -3024,7 +3052,7 @@ public abstract class Entity extends TurnOrdered
             if (hex.containsTerrain(Terrains.WATER) &&
                   (assumedAlt < hex.getLevel()) &&
                   !((this instanceof Mek) || (this instanceof ProtoMek)) &&
-                  !(hasEnvironmentalSealing())) {
+                  !EnvironmentalSealingRules.canOperateFullySubmerged(this)) {
                 return false;
             }
             // can move on the ground unless its underwater
@@ -4488,11 +4516,13 @@ public abstract class Entity extends TurnOrdered
     }
 
     /**
-     * Is this location destroyed or breached?
+     * Is this location destroyed, or a breached leg treated as destroyed by the current rules?
      */
     public boolean isLocationBad(int loc) {
         return (getInternal(loc) == IArmorState.ARMOR_DESTROYED) ||
-              (isLocationBlownOff(loc) && !isLocationBlownOffThisPhase(loc));
+              (isLocationBlownOff(loc) && !isLocationBlownOffThisPhase(loc)) ||
+              (locationIsLeg(loc) && (getLocationStatus(loc) == ILocationExposureStatus.BREACHED) &&
+                    Game.rulesManager.getRulesUnderwater().treatBreachedLegAsDestroyed());
     }
 
     public boolean isLocationTrulyDestroyed(int loc) {
@@ -4895,8 +4925,12 @@ public abstract class Entity extends TurnOrdered
 
     /**
      * Returns the equipment, specified by number
+     *
+     * @param index the equipment number
+     *
+     * @return the mount with that number, or {@code null} when the unit has no equipment with that number
      */
-    public Mounted<?> getEquipment(int index) {
+    public @Nullable Mounted<?> getEquipment(int index) {
         try {
             return equipmentList.get(index);
         } catch (IndexOutOfBoundsException ex) {
@@ -8286,7 +8320,7 @@ public abstract class Entity extends TurnOrdered
      *       this unit uses a manual BV value
      */
     public final int calculateBattleValue() {
-        return manualOrCalculateBV(false, false, new DummyCalculationReport());
+        return manualOrCalculateBV(false, false, false, new DummyCalculationReport());
     }
 
     /**
@@ -8300,7 +8334,22 @@ public abstract class Entity extends TurnOrdered
      * @return The Battle Value of this unit
      */
     public final int calculateBattleValue(boolean ignoreC3, boolean ignoreSkill) {
-        return manualOrCalculateBV(ignoreC3, ignoreSkill, new DummyCalculationReport());
+        return manualOrCalculateBV(ignoreC3, ignoreSkill, false, new DummyCalculationReport());
+    }
+
+    /**
+     * Calculates the Battle Value of this unit. The parameters can be used to control C3 / skill / TAG based changes to
+     * the BV. Note that when a unit has a manual BV value set in its definition file, this manual BV value is returned
+     * instead of a calculated BV value.
+     *
+     * @param ignoreC3    When {@code true}, the BV contributions of any C3 computers are not added
+     * @param ignoreSkill When {@code true}, the skill of the crew / pilot is not taken into account for BV
+     * @param ignoreTAG   When {@code true}, the force bonus for friendly guided munitions (TAG/homing) is not added
+     *
+     * @return The Battle Value of this unit
+     */
+    public final int calculateBattleValue(boolean ignoreC3, boolean ignoreSkill, boolean ignoreTAG) {
+        return manualOrCalculateBV(ignoreC3, ignoreSkill, ignoreTAG, new DummyCalculationReport());
     }
 
     /**
@@ -8314,7 +8363,7 @@ public abstract class Entity extends TurnOrdered
      *       this unit uses a manual BV value
      */
     public int calculateBattleValue(CalculationReport calculationReport) {
-        return manualOrCalculateBV(false, false, calculationReport);
+        return manualOrCalculateBV(false, false, false, calculationReport);
     }
 
     /**
@@ -8330,21 +8379,41 @@ public abstract class Entity extends TurnOrdered
      * @return The Battle Value of this unit
      */
     public int calculateBattleValue(boolean ignoreC3, boolean ignoreSkill, CalculationReport calculationReport) {
-        return manualOrCalculateBV(ignoreC3, ignoreSkill, calculationReport);
+        return manualOrCalculateBV(ignoreC3, ignoreSkill, false, calculationReport);
+    }
+
+    /**
+     * Calculates the Battle Value of this unit. The parameters can be used to control C3 / skill / TAG based changes to
+     * the BV. Note that when a unit has a manual BV value set in its definition file, this manual BV value is returned
+     * instead of a calculated BV value and no calculation report info will be generated.
+     *
+     * @param ignoreC3          When {@code true}, the BV contributions of any C3 computers are not added
+     * @param ignoreSkill       When {@code true}, the skill of the crew / pilot is not taken into account for BV
+     * @param ignoreTAG         When {@code true}, the force bonus for friendly guided munitions (TAG/homing) is not
+     *                          added
+     * @param calculationReport A CalculationReport to write the BV calculation to
+     *
+     * @return The Battle Value of this unit
+     */
+    public int calculateBattleValue(boolean ignoreC3, boolean ignoreSkill, boolean ignoreTAG,
+          CalculationReport calculationReport) {
+        return manualOrCalculateBV(ignoreC3, ignoreSkill, ignoreTAG, calculationReport);
     }
 
     /**
      * Checks if this unit uses a manual BV and if so, returns it. Otherwise, forwards to the actual BV calculation
      * method.
      *
-     * @param ignoreC3          When true, the BV contributions of any C3 computers are not added
-     * @param ignoreSkill       When true, the skill of the crew / pilot is not taken into account for BV
+     * @param ignoreC3          When {@code true}, the BV contributions of any C3 computers are not added
+     * @param ignoreSkill       When {@code true}, the skill of the crew / pilot is not taken into account for BV
+     * @param ignoreTAG         When {@code true}, the force bonus for friendly guided munitions (TAG/homing) is not added
      * @param calculationReport A CalculationReport to write the BV calculation to
      *
      * @return The Battle Value of this unit
      */
-    private int manualOrCalculateBV(boolean ignoreC3, boolean ignoreSkill, CalculationReport calculationReport) {
-        return useManualBV ? manualBV : doBattleValueCalculation(ignoreC3, ignoreSkill, calculationReport);
+    private int manualOrCalculateBV(boolean ignoreC3, boolean ignoreSkill, boolean ignoreTAG,
+          CalculationReport calculationReport) {
+        return useManualBV ? manualBV : doBattleValueCalculation(ignoreC3, ignoreSkill, ignoreTAG, calculationReport);
     }
 
     /**
@@ -8352,14 +8421,16 @@ public abstract class Entity extends TurnOrdered
      * overridden by subclasses of Entity to provide a unit type specific calculation of the Battle Value. A report of
      * the calculation should be written to the given calculationReport.
      *
-     * @param ignoreC3          When true, the BV contributions of any C3 computers are not added
-     * @param ignoreSkill       When true, the skill of the crew / pilot is not taken into account for BV
+     * @param ignoreC3          When {@code true}, the BV contributions of any C3 computers are not added
+     * @param ignoreSkill       When {@code true}, the skill of the crew / pilot is not taken into account for BV
+     * @param ignoreTAG         When {@code true}, the force bonus for friendly guided munitions (TAG/homing) is not added
      * @param calculationReport A CalculationReport to write the BV calculation to
      *
      * @return The Battle Value of this unit calculated from its current state
      */
-    protected int doBattleValueCalculation(boolean ignoreC3, boolean ignoreSkill, CalculationReport calculationReport) {
-        return getBvCalculator().calculateBV(ignoreC3, ignoreSkill, calculationReport);
+    protected int doBattleValueCalculation(boolean ignoreC3, boolean ignoreSkill, boolean ignoreTAG,
+          CalculationReport calculationReport) {
+        return getBvCalculator().calculateBV(ignoreC3, ignoreSkill, ignoreTAG, calculationReport);
     }
 
     /**
@@ -9224,10 +9295,6 @@ public abstract class Entity extends TurnOrdered
             mod = 0;
         } else {
             mod = 1;
-        }
-
-        if (waterLevel >=1 && overallMoveType == EntityMovementType.MOVE_RUN && !Game.rulesManager.getRulesMovement().cannotRunInWater(movementMode, false)) {
-            roll.append(new PilotingRollData(getId(), 0, "entering Depth " + waterLevel + " Water"));
         }
 
         if ((waterLevel > 1) &&
@@ -10661,6 +10728,20 @@ public abstract class Entity extends TurnOrdered
     /**
      * Clear all infantry combat state (called when combat ends).
      */
+    /**
+     * @return {@code true} when the unit withdrew from an infantry action and has yet to be moved out of the building
+     */
+    public boolean isInfantryActionLeaving() {
+        return infantryActionLeaving;
+    }
+
+    /**
+     * @param leaving {@code true} once the unit's force has withdrawn and it waits to be moved out of the building
+     */
+    public void setInfantryActionLeaving(boolean leaving) {
+        infantryActionLeaving = leaving;
+    }
+
     public void clearInfantryCombatState() {
         infantryCombatTargetId = Entity.NONE;
         infantryCombatIsAttacker = false;
@@ -11786,7 +11867,7 @@ public abstract class Entity extends TurnOrdered
      * activation, and detonating a demolition charge this player has set.
      */
     public boolean isEligibleForPreEndDeclarations() {
-        return canInitiateInfantryVsInfantryCombat()
+        return canDeclareInfantryAction()
               || hasNovaCEWS()
               || hasVariableRangeTargeting()
               || canAnnounceAbandon()
@@ -11817,16 +11898,39 @@ public abstract class Entity extends TurnOrdered
      * player while keeping the per-unit turns.
      */
     public boolean hasEntityScopedPreEndDeclaration() {
-        // Infantry-vs-infantry combat and Bridge-Layer (AVLB) deployment are both declared per unit (TM p.242 / TW).
-        return canInitiateInfantryVsInfantryCombat() || BridgeLayerLogic.canDeclareBridgeDeploy(this, game);
+        // Bridge-Layer (AVLB) deployment is declared per unit (TM p.242 / TW); an infantry action is declared once
+        // per player per building, so it collapses to one turn like the other player-wide declarations.
+        return BridgeLayerLogic.canDeclareBridgeDeploy(this, game);
     }
 
     /**
-     * Check if the entity can participate in ONGOING infantry vs. infantry combat. This is for the
-     * INFANTRY_VS_INFANTRY_COMBAT phase.
+     * Whether this unit gives its player a Pre-End Declarations turn for an infantry action (TO:AR pp. 169 to 172):
+     * infantry that could attack, join or withdraw, and a crewed building with enemies inside. The base
+     * implementation returns {@code false}; infantry and buildings override it.
+     *
+     * @return {@code true} when there is a declaration to make
+     */
+    public boolean canDeclareInfantryAction() {
+        return false;
+    }
+
+    /**
+     * Whether this unit may announce a withdrawal from the infantry action it is in (TO:AR p. 172): only an
+     * attacker withdraws, and only while it has not already announced one.
+     *
+     * @return {@code true} for an engaged attacker that has not yet declared a withdrawal
+     */
+    public boolean canWithdrawFromInfantryAction() {
+        boolean isEngaged = infantryCombatTargetId != Entity.NONE;
+        return isEngaged && infantryCombatIsAttacker && !infantryCombatWantsWithdrawal;
+    }
+
+    /**
+     * Whether the unit gets a turn in the INFANTRY_VS_INFANTRY_COMBAT phase: a unit that can join an action running
+     * where it stands, or an attacker already in one that may still withdraw.
      */
     public boolean isEligibleForInfantryVsInfantry() {
-        return canReinforceInfantryVsInfantry();
+        return canReinforceInfantryVsInfantry() || canWithdrawFromInfantryAction();
     }
 
     /**
@@ -12585,6 +12689,24 @@ public abstract class Entity extends TurnOrdered
     }
 
     /**
+     * Counts one more End Phase spent out in a tainted atmosphere and reports the running total, TO:AR p.54. A
+     * radiological or poisonous tainted atmosphere starts killing conventional infantry after 30 turns in the open and
+     * the crews of unsealed vehicles after 90.
+     *
+     * @return the number of turns this unit has now spent exposed to the atmosphere
+     */
+    public int advanceTaintedAtmosphereExposure() {
+        return ++taintedAtmosphereExposureTurns;
+    }
+
+    /**
+     * @return the number of End Phases this unit has spent out in a tainted atmosphere
+     */
+    public int getTaintedAtmosphereExposureTurns() {
+        return taintedAtmosphereExposureTurns;
+    }
+
+    /**
      * @return True when this unit is not allowed to be or will not survive in any hex of a ground map (unless it is
      *       being transported).
      */
@@ -12726,22 +12848,15 @@ public abstract class Entity extends TurnOrdered
      *       context or invalid value
      */
     protected String getNeuralInterfaceMode() {
-        if (game == null) {
-            return OptionsConstants.NEURAL_INTERFACE_MODE_OFF;
-        }
-        IOption option = gameOptions().getOption(OptionsConstants.ADVANCED_NEURAL_INTERFACE_MODE);
-        String mode = (option == null) ? null : option.stringValue();
-        if ((mode == null) || mode.isBlank()) {
-            return OptionsConstants.NEURAL_INTERFACE_MODE_OFF;
-        }
-        mode = mode.trim();
-        if (OptionsConstants.NEURAL_INTERFACE_MODE_OFF.equals(mode)
-              || OptionsConstants.NEURAL_INTERFACE_MODE_PILOT_ONLY.equals(mode)
-              || OptionsConstants.NEURAL_INTERFACE_MODE_FULL_TRACKING.equals(mode)) {
-            return mode;
-        }
-        LOGGER.warn("Unknown neural interface mode '{}'; defaulting to Off.", mode);
-        return OptionsConstants.NEURAL_INTERFACE_MODE_OFF;
+        return neuralInterfaceMode().optionValue();
+    }
+
+    /**
+     * @return the neural interface setting this unit's game is playing under, or
+     *       {@link NeuralInterfaceMode#OFF} when the unit is not in a game
+     */
+    protected NeuralInterfaceMode neuralInterfaceMode() {
+        return (game == null) ? NeuralInterfaceMode.OFF : NeuralInterfaceMode.from(gameOptions());
     }
 
     /**
@@ -12750,7 +12865,7 @@ public abstract class Entity extends TurnOrdered
      * @return true if neural interface mode is not Off
      */
     protected boolean isNeuralInterfaceEnabled() {
-        return !OptionsConstants.NEURAL_INTERFACE_MODE_OFF.equals(getNeuralInterfaceMode());
+        return neuralInterfaceMode().isOn();
     }
 
     /**
@@ -12759,7 +12874,7 @@ public abstract class Entity extends TurnOrdered
      * @return true if neural interface mode is Full Tracking
      */
     protected boolean isNeuralInterfaceFullTracking() {
-        return OptionsConstants.NEURAL_INTERFACE_MODE_FULL_TRACKING.equals(getNeuralInterfaceMode());
+        return neuralInterfaceMode().requiresInterfaceHardware();
     }
 
     /**
@@ -12776,19 +12891,7 @@ public abstract class Entity extends TurnOrdered
      * @return true if the neural interface is considered active
      */
     private boolean isNeuralInterfaceActive(boolean hasImplant, boolean hasHardware) {
-        String mode = getNeuralInterfaceMode();
-        if (OptionsConstants.NEURAL_INTERFACE_MODE_OFF.equals(mode)) {
-            return false;
-        }
-        if (!hasImplant) {
-            return false;
-        }
-        // Pilot Abilities Only: implant alone provides benefits
-        if (OptionsConstants.NEURAL_INTERFACE_MODE_PILOT_ONLY.equals(mode)) {
-            return true;
-        }
-        // Full Tracking: require the interface equipment
-        return hasHardware;
+        return neuralInterfaceMode().grantsBenefit(hasImplant, hasHardware);
     }
 
     /**

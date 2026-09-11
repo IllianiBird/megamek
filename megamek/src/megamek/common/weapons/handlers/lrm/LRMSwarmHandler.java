@@ -263,10 +263,8 @@ public class LRMSwarmHandler extends LRMHandler {
             }
             // Targeting a building.
             if (target.getTargetType() == Targetable.TYPE_BUILDING) {
-                // The building takes the full brunt of the attack.
-                nDamage = nDamPerHit * hits;
-                handleBuildingDamage(vPhaseReport, bldg, nDamage,
-                      target.getPosition());
+                // The building takes the full brunt of the attack, one damage grouping at a time.
+                handleBuildingDamageByGrouping(vPhaseReport, bldg, hits, nCluster, target.getPosition());
                 hits = 0;
             }
             if (entityTarget != null) {
@@ -349,8 +347,8 @@ public class LRMSwarmHandler extends LRMHandler {
             int missiles = weaponAttackAction.isSwarmingMissiles() ? weaponAttackAction.getSwarmMissiles()
                   : weaponType.getRackSize();
             double toReturn = Compute.directBlowInfantryDamage(
-                  missiles, bDirect ? toHit.getMoS() / 3 : 0,
-                  weaponType.getInfantryDamageClass(),
+                  missiles, getInfantryDamageClassShift(),
+                  resolveInfantryDamageClass(weaponType.getInfantryDamageClass()),
                   ((Infantry) target).isMechanized(),
                   toHit.getThruBldg() != null, attackingEntity.getId(), calcDmgPerHitReport);
 
