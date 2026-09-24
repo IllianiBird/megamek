@@ -1166,11 +1166,15 @@ public final class Game extends AbstractGame implements Serializable,
         Objects.requireNonNull(vOutOfGame, "New out-of-game list should not be null.");
         Vector<Entity> newOutOfGame = new Vector<>();
 
-        // Add entities for the existing players to the game.
+        // Add entities for the existing players to the game. Each entity is only kept once; if the list contains
+        // duplicates, the last (most recent) entry wins.
         for (Entity entity : vOutOfGame) {
             int ownerId = entity.getOwnerId();
             if ((ownerId != Entity.NONE) && (getPlayer(ownerId) != null)) {
                 entity.setGame(this);
+                if (entity.getId() != Entity.NONE) {
+                    newOutOfGame.removeIf(existingEntity -> existingEntity.getId() == entity.getId());
+                }
                 newOutOfGame.addElement(entity);
             }
         }
@@ -1617,6 +1621,9 @@ public final class Game extends AbstractGame implements Serializable,
 
         // do not keep never-joined entities
         if ((vOutOfGame != null) && (condition != IEntityRemovalConditions.REMOVE_NEVER_JOINED)) {
+            // Replace any stale entry for this entity (possible after resuming a saved game), so it's never listed
+            // twice; duplicates here are reported twice at the end of the game, doubling salvage and kill credits
+            vOutOfGame.removeIf(entity -> entity.getId() == id);
             vOutOfGame.addElement(toRemove);
         }
 
