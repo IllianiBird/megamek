@@ -522,6 +522,10 @@ public class BLKFile {
                 } else {
                     sv.setArmorTechLevel(sv.getStaticTechLevel().getCompoundTechLevel(sv.isClan()));
                 }
+                // Without a BAR line the armor is not BAR armor; standard armor counts as BAR 10, and support
+                // vehicles otherwise keep a BAR of 0
+                megamek.common.equipment.ArmorType armor = ArmorType.forEntity(sv);
+                sv.setBARRating((armor == null) ? 10 : armor.getBAR());
             }
 
             if (dataFile.exists("armor_tech_rating")) {
