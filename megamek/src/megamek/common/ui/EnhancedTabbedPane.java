@@ -252,7 +252,6 @@ public class EnhancedTabbedPane extends JTabbedPane {
      *
      * @param enabled true to enable tab detaching, false to disable
      */
-    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setTabDetachingEnabled(boolean enabled) {
         tabDetachingEnabled = enabled;
         setupDragEventsListeners();
@@ -263,7 +262,6 @@ public class EnhancedTabbedPane extends JTabbedPane {
      *
      * @param enabled true to enable tab reordering, false to disable
      */
-    @Deprecated(since = "0.51.0", forRemoval = true)
     public void setTabReorderingEnabled(boolean enabled) {
         tabReorderingEnabled = enabled;
         setupDragEventsListeners();
